@@ -1,7 +1,7 @@
 import asyncio
 
 import qasync
-from PyQt5 import Qt
+from PyQt5.QtCore import Qt
 from PyQt5.QtWidgets import QApplication, QWidget, QHBoxLayout, QVBoxLayout, QPushButton, QLabel, QMessageBox, \
     QMainWindow, QTextEdit, QGridLayout
 
@@ -17,7 +17,6 @@ class DeviceInformationWindow(QWidget):
         self.label = QLabel(f"{self.device_name}")
         self.text_edit = QTextEdit()
 
-        # Here you can add code to retrieve and display information about the device
         self.text_edit.setText(f"Data from {self.device_name}")
 
         self.layout.addWidget(self.label)
@@ -82,7 +81,6 @@ class DevicePanel(QWidget):
         info_window = DeviceInformationWindow(self.device_name)
         info_window.show()
 
-
 class MyApp(QWidget):
     def __init__(self):
         super().__init__()
@@ -98,6 +96,22 @@ class MyApp(QWidget):
 
         self.info_window_group = InfoWindowGroup(self.devices)
         self.info_window_group.show()
+
+        self.moving = False
+        self.offset = None
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self.moving = True
+            self.offset = event.pos()
+
+    def mouseMoveEvent(self, event):
+        if self.moving:
+            self.move(event.globalPos() - self.offset)
+
+    def mouseReleaseEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self.moving = False
 
 
 async def main():
