@@ -1,3 +1,6 @@
+import asyncio
+
+import qasync
 from PyQt5 import Qt
 from PyQt5.QtWidgets import QApplication, QWidget, QHBoxLayout, QVBoxLayout, QPushButton, QLabel, QMessageBox, \
     QMainWindow, QTextEdit, QGridLayout
@@ -21,6 +24,7 @@ class DeviceInformationWindow(QWidget):
         self.layout.addWidget(self.text_edit)
 
         self.setLayout(self.layout)
+
 
 class InfoWindowGroup(QMainWindow):
     def __init__(self, devices):
@@ -53,6 +57,7 @@ class InfoWindowGroup(QMainWindow):
     def mouseReleaseEvent(self, event):
         if event.button() == Qt.LeftButton:
             self.moving = False
+
 
 class DevicePanel(QWidget):
     def __init__(self, device_name):
@@ -94,7 +99,16 @@ class MyApp(QWidget):
         self.info_window_group = InfoWindowGroup(self.devices)
         self.info_window_group.show()
 
-app = QApplication([])
-window = MyApp()
-window.show()
-app.exec_()
+
+async def main():
+    app = QApplication([])
+    loop = qasync.QEventLoop(app)
+    asyncio.set_event_loop(loop)
+
+    with loop:
+        window = MyApp()
+        window.show()
+        await loop.run_forever()
+
+if __name__ == "__main__":
+    asyncio.run(main())
