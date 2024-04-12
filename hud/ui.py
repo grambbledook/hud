@@ -6,6 +6,26 @@ from PyQt5.QtWidgets import QApplication, QWidget, QHBoxLayout, QVBoxLayout, QPu
     QMainWindow, QTextEdit, QGridLayout
 
 
+class DraggableWindow:
+    def __init__(self):
+        super().__init__()
+        self.moving = False
+        self.offset = None
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self.moving = True
+            self.offset = event.pos()
+
+    def mouseMoveEvent(self, event):
+        if self.moving:
+            self.move(event.globalPos() - self.offset)
+
+    def mouseReleaseEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self.moving = False
+
+
 class DeviceInformationWindow(QWidget):
     def __init__(self, device_name):
         super().__init__()
@@ -25,7 +45,7 @@ class DeviceInformationWindow(QWidget):
         self.setLayout(self.layout)
 
 
-class InfoWindowGroup(QMainWindow):
+class InfoWindowGroup(QMainWindow, DraggableWindow):
     def __init__(self, devices):
         super().__init__()
 
@@ -40,22 +60,6 @@ class InfoWindowGroup(QMainWindow):
 
         for i, window in enumerate(self.info_windows):
             self.layout.addWidget(window, i // 2, i % 2)
-
-        self.moving = False
-        self.offset = None
-
-    def mousePressEvent(self, event):
-        if event.button() == Qt.LeftButton:
-            self.moving = True
-            self.offset = event.pos()
-
-    def mouseMoveEvent(self, event):
-        if self.moving:
-            self.move(event.globalPos() - self.offset)
-
-    def mouseReleaseEvent(self, event):
-        if event.button() == Qt.LeftButton:
-            self.moving = False
 
 
 class DevicePanel(QWidget):
@@ -81,11 +85,12 @@ class DevicePanel(QWidget):
         info_window = DeviceInformationWindow(self.device_name)
         info_window.show()
 
-class MyApp(QWidget):
+
+class MyApp(QWidget, DraggableWindow):
     def __init__(self):
         super().__init__()
 
-        self.devices = ["Heart Rate Monitor", "Cadence Sensor", "Speed Sensor", "Power Sensor"]
+        self.devices = ["Heart Rate Monitor", "Cadence Sensor", "Speed Sensor", "Power Meter"]
         self.device_panels = [DevicePanel(device) for device in self.devices]
 
         self.layout = QHBoxLayout()
@@ -97,22 +102,6 @@ class MyApp(QWidget):
         self.info_window_group = InfoWindowGroup(self.devices)
         self.info_window_group.show()
 
-        self.moving = False
-        self.offset = None
-
-    def mousePressEvent(self, event):
-        if event.button() == Qt.LeftButton:
-            self.moving = True
-            self.offset = event.pos()
-
-    def mouseMoveEvent(self, event):
-        if self.moving:
-            self.move(event.globalPos() - self.offset)
-
-    def mouseReleaseEvent(self, event):
-        if event.button() == Qt.LeftButton:
-            self.moving = False
-
 
 async def main():
     app = QApplication([])
@@ -123,6 +112,7 @@ async def main():
         window = MyApp()
         window.show()
         await loop.run_forever()
+
 
 if __name__ == "__main__":
     asyncio.run(main())
