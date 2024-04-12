@@ -1,7 +1,7 @@
+from collections import namedtuple
 from typing import Optional
 
-from hud.test import DeviceHandle
-
+from hud.controller import DeviceHandle
 
 class State(object):
     def __init__(self):
