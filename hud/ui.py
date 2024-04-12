@@ -86,7 +86,7 @@ class DevicePanel(QWidget):
         info_window.show()
 
 
-class MyApp(QWidget, DraggableWindow):
+class DeviceManagementWindow(QWidget, DraggableWindow):
     def __init__(self):
         super().__init__()
 
@@ -109,7 +109,7 @@ async def main():
     asyncio.set_event_loop(loop)
 
     with loop:
-        window = MyApp()
+        window = DeviceManagementWindow()
         window.show()
         await loop.run_forever()
 

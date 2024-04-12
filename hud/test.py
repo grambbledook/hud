@@ -1,64 +1,134 @@
-import asyncio
-from typing import AsyncGenerator, TypeVar, Generic, Callable
+import sys
+from collections import namedtuple
+from time import sleep
 
-from bleak import BleakScanner, BleakClient, BleakGATTCharacteristic
+from PyQt5.QtCore import QThread, pyqtSignal, Qt
+from PyQt5.QtWidgets import QApplication, QMainWindow, QPushButton, QLabel, QVBoxLayout, QWidget, QDialog, QListWidget, \
+    QListWidgetItem
 
-HEART_RATE_SERVICE_UUID = "0000180d-0000-1000-8000-00805f9b34fb"
-HEART_RATE_MEASUREMENT_CHAR_UUID = "00002a37-0000-1000-8000-00805f9b34fb"
-
-T = TypeVar('T')
-
-
-class DeviceHandle(Generic[T]):
-    def __init__(self, name: str, client: BleakClient, service_uuid: str, characteristic_uuid: str):
-        self.name: str = name
-        self.service_uuid: str = service_uuid
-        self.characteristic_uuid: str = characteristic_uuid
-
-        self.client: BleakClient = client
-
-    async def subscribe(self, handle: Callable[[T], None]):
-        def on_data(characteristic: BleakGATTCharacteristic, data: bytearray) -> None:
-            print(f"Data from {characteristic}: {data}")
-            handle(data[1])
-
-        await self.client.connect()
-        await self.client.start_notify(self.characteristic_uuid, on_data)
-
-    async def unsubscribe(self):
-        if not self.client:
-            return
-
-        await self.client.stop_notify(self.characteristic_uuid)
-        await self.client.disconnect()
+Stub = namedtuple('Stub', ['name', 'value'])
 
 
-class DeviceScanner(object):
-    def __init__(self, service_uuid: str, characteristic_uuid: str):
-        self.service_uuid = service_uuid
-        self.characteristic_uuid = characteristic_uuid
-
-    async def scan(self) -> AsyncGenerator[DeviceHandle, None]:
-        scanner = BleakScanner()
-        address_to_device_and_advertisement_data = await scanner.discover(return_adv=True)
-
-        for address, (device, advertisement_data) in address_to_device_and_advertisement_data.items():
-            if self.service_uuid in advertisement_data.service_uuids:
-                yield DeviceHandle(
-                    name=device.name or address,
-                    service_uuid=self.service_uuid,
-                    characteristic_uuid=self.characteristic_uuid,
-                    client=BleakClient(device),
-                )
+def scan():
+    for i in range(10):
+        yield Stub(f"Device {i}", measurements())
+        sleep(1)
 
 
-async def main():
-    scanner = DeviceScanner(HEART_RATE_SERVICE_UUID, HEART_RATE_MEASUREMENT_CHAR_UUID)
-    async for device in scanner.scan():
-        await device.subscribe(lambda heart_rate: print(f"Heart rate: {heart_rate}"))
-        await asyncio.sleep(10)
-        await device.unsubscribe()
+def measurements():
+    i = 0
+    while True:
+        yield i
+        i += 1
+        sleep(1)
+
+
+class ScanThread(QThread):
+    deviceFound = pyqtSignal(Stub)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._isRunning = True
+
+    def run(self):
+        for device in scan():
+            if not self._isRunning:
+                break
+            self.deviceFound.emit(device)
+
+    def stop(self):
+        self._isRunning = False
+
+
+class UpdateMetricsThread(QThread):
+    valueUpdated = pyqtSignal(int)
+
+    def __init__(self, device, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.device = device
+        self._isRunning = True
+
+    def run(self):
+        for value in self.device.value:
+            if not self._isRunning:
+                break
+            self.valueUpdated.emit(value)
+
+    def stop(self):
+        self._isRunning = False
+
+
+class DeviceDialog(QDialog):
+    deviceSelected = pyqtSignal(Stub)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.listWidget = QListWidget(self)
+        self.layout = QVBoxLayout(self)
+        self.layout.addWidget(self.listWidget)
+        self.listWidget.itemDoubleClicked.connect(self.selectDevice)
+
+    def addDevice(self, device):
+        item = QListWidgetItem(device.name)
+        item.setData(Qt.UserRole, device)
+        self.listWidget.addItem(item)
+
+    def selectDevice(self, item):
+        device = item.data(Qt.UserRole)
+        self.deviceSelected.emit(device)
+        self.accept()
+
+
+class MainWindow(QMainWindow):
+    updateMetricsThread = None
+    thread = None
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.selectButton = QPushButton("Select", self)
+        self.deviceLabel = QLabel("No device selected", self)
+        self.metricLabel = QLabel("No metrics available", self)
+
+        self.layout = QVBoxLayout()
+        self.layout.addWidget(self.selectButton)
+        self.layout.addWidget(self.deviceLabel)
+        self.layout.addWidget(self.metricLabel)
+
+        self.centralWidget = QWidget(self)
+        self.centralWidget.setLayout(self.layout)
+        self.setCentralWidget(self.centralWidget)
+
+        self.selectButton.clicked.connect(self.selectDevice)
+
+    def selectDevice(self):
+        dialog = DeviceDialog(self)
+        dialog.deviceSelected.connect(self.deviceSelected)
+        self.thread = ScanThread()
+        self.thread.deviceFound.connect(dialog.addDevice)
+        self.thread.start()
+        dialog.exec_()
+
+    def deviceSelected(self, device):
+        if self.thread:
+            self.thread.stop()
+
+        if self.updateMetricsThread:
+            self.updateMetricsThread.stop()
+
+        self.updateDevice(device)
+
+    def updateDevice(self, device):
+        self.deviceLabel.setText(f"Device: {device.name}")
+        self.updateMetricsThread = UpdateMetricsThread(device)
+        self.updateMetricsThread.valueUpdated.connect(self.updateMetrics)
+        self.updateMetricsThread.start()
+
+    def updateMetrics(self, value):
+        self.metricLabel.setText(f"Value: {value}")
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    app = QApplication(sys.argv)
+    window = MainWindow()
+    window.show()
+    sys.exit(app.exec_())
