@@ -1,6 +1,5 @@
 import asyncio
 import sys
-from collections import namedtuple
 from typing import Generic, TypeVar, AsyncGenerator
 
 import qasync
@@ -8,22 +7,7 @@ from PyQt5.QtCore import QThread, pyqtSignal, Qt
 from PyQt5.QtWidgets import QApplication, QMainWindow, QPushButton, QLabel, QVBoxLayout, QWidget, QDialog, QListWidget, \
     QListWidgetItem
 
-Stub = namedtuple('Stub', ['name', 'value'])
-
-
-async def scan():
-    for i in range(10):
-        yield Stub(f"Device {i}", measurements)
-        await asyncio.sleep(1)
-
-
-async def measurements():
-    i = 0
-    while True:
-        yield i
-        i += 1
-        await asyncio.sleep(1)
-
+from hud.controller import DeviceHandle, DeviceScanner, HEART_RATE_MONITOR
 
 T = TypeVar('T')
 
@@ -55,7 +39,7 @@ class WorkerThread(QThread, Generic[T]):
 
 
 class ScanThread(WorkerThread):
-    deviceFound = pyqtSignal(Stub)
+    deviceFound = pyqtSignal(DeviceHandle)
 
     def __init__(self, generator, *args, **kwargs):
         super().__init__(generator, *args, **kwargs)
@@ -75,8 +59,7 @@ class UpdateMetricsThread(WorkerThread):
 
 
 class DeviceDialog(QDialog):
-    device_selected = pyqtSignal(Stub)
-    thread: ScanThread = None
+    device_selected = pyqtSignal(DeviceHandle)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -122,24 +105,31 @@ class MainWindow(QMainWindow):
 
         self.selectButton.clicked.connect(self.show_select_device_dialog)
 
+    def closeEvent(self, event):
+        self.disconnect()
+        event.accept()
+
     def show_select_device_dialog(self):
         dialog = DeviceDialog(self)
-        dialog.thread = ScanThread(scan())
+        dialog.thread = ScanThread(DeviceScanner(HEART_RATE_MONITOR).scan())
         dialog.thread.deviceFound.connect(dialog.show_device)
         dialog.device_selected.connect(self.device_selected)
 
         dialog.thread.start()
         dialog.exec_()
 
-    def device_selected(self, device):
-        if self.update_metrics_thread:
-            self.update_metrics_thread.stop()
+    def device_selected(self, device: DeviceHandle):
+        self.disconnect()
 
         self.update_selected_device(device)
 
-    def update_selected_device(self, device: Stub):
+    def disconnect(self):
+        if self.update_metrics_thread:
+            self.update_metrics_thread.stop()
+
+    def update_selected_device(self, device: DeviceHandle):
         self.deviceLabel.setText(f"Device: {device.name}")
-        self.update_metrics_thread = UpdateMetricsThread(device.value())
+        self.update_metrics_thread = UpdateMetricsThread(device.subscribe())
         self.update_metrics_thread.value_updated.connect(self.update_metrics)
         self.update_metrics_thread.start()
 

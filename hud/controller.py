@@ -1,41 +1,42 @@
 import asyncio
 from collections import namedtuple
-from time import sleep
-from typing import TypeVar, Generic, Callable, Generator, AsyncGenerator
+from typing import TypeVar, Generic, AsyncGenerator
 
 from bleak import BleakScanner, BleakClient, BleakGATTCharacteristic
 
+from hud.two_way_generator import AsyncBuffer
+
 Device = namedtuple(
     'DeviceService',
-    ['service_uuid', 'characteristic_uuid', 'name', 'transformer']
+    ['service_uuid', 'characteristic_uuid', 'type', 'transformer']
 )
 
 HEART_RATE_MONITOR = Device(
     "0000180d-0000-1000-8000-00805f9b34fb",
     "00002a37-0000-1000-8000-00805f9b34fb",
     "Heart Rate Monitor",
-    lambda data: data[1],
+    lambda _, data: data[1],
 )
 
 CADENCE_SENSOR = Device(
     "00001816-0000-1000-8000-00805f9b34fb",
     "00002a5b-0000-1000-8000-00805f9b34fb",
     "Cadence Sensor",
-    lambda data: data[1],
+    lambda _, data: data[1],
 )
 
 SPEED_SENSOR = Device(
     "00001816-0000-1000-8000-00805f9b34fb",
     "00002a5b-0000-1000-8000-00805f9b34fb",
     "Speed Sensor",
-    lambda data: data[1],
+    lambda _, data: data[1],
 )
 
 POWER_METER = Device(
     "00001818-0000-1000-8000-00805f9b34fb",
     "00002a63-0000-1000-8000-00805f9b34fb",
     "Power Meter",
-    lambda data: data[1],
+    lambda _, data: data[1],
 )
 
 T = TypeVar('T')
@@ -45,25 +46,24 @@ class DeviceHandle(Generic[T]):
     def __init__(self, name: str, client: BleakClient, device: Device):
         self.name: str = name
         self.device: Device = device
-
         self.client: BleakClient = client
 
-    def subscribe(self, handle: Callable[[T], None], loop: asyncio.AbstractEventLoop = asyncio.new_event_loop()):
-        loop.run_until_complete(self.asubscribe(handle))
+    async def subscribe(self) -> AsyncGenerator[T, None]:
+        queue = asyncio.Queue()
 
-    async def asubscribe(self, handle: Callable[[T], None]):
-        def on_data(characteristic: BleakGATTCharacteristic, data: bytearray) -> None:
-            transformed = self.device.transformer(data)
-            print(f"Data from {characteristic}: {data}, transformed: {transformed}")
-            handle(transformed)
+        async def on_data(characteristic: BleakGATTCharacteristic, data: bytearray):
+            transformed = self.device.transformer(characteristic, data)
+            await queue.put(transformed)
 
         await self.client.connect()
-        await self.client.start_notify(self.device.characteristic_uuid, on_data)
+        await self.client.start_notify(self.device.characteristic_uuid, callback=on_data)
 
-    def unsubscribe(self, loop: asyncio.AbstractEventLoop = asyncio.new_event_loop()):
-        loop.run_until_complete(self.aunsubscribe())
+        while True:
+            value = await queue.get()
+            queue.task_done()
+            yield value
 
-    async def aunsubscribe(self):
+    async def unsubscribe(self):
         if not self.client:
             return
 
@@ -75,16 +75,7 @@ class DeviceScanner(object):
     def __init__(self, device: Device):
         self.device: Device = device
 
-    def scan(self, loop: asyncio.AbstractEventLoop = asyncio.new_event_loop()) -> Generator[DeviceHandle, None, None]:
-        gen = self.ascan()
-        try:
-            while True:
-                next_val = loop.run_until_complete(gen.__anext__())
-                yield next_val
-        except StopAsyncIteration as e:
-            print(e)
-
-    async def ascan(self) -> AsyncGenerator[DeviceHandle, None]:
+    async def scan(self) -> AsyncGenerator[DeviceHandle, None]:
         scanner = BleakScanner()
         address_to_device_and_advertisement_data = await scanner.discover(return_adv=True)
 
@@ -97,26 +88,17 @@ class DeviceScanner(object):
                 )
 
 
-def sync():
-    loop = asyncio.new_event_loop()
+async def run():
     scanner = DeviceScanner(HEART_RATE_MONITOR)
-    for device in scanner.scan(loop=loop):
-        device.subscribe(lambda heart_rate: print(f"Heart rate: {heart_rate}"), loop=loop)
-        sleep(10)
-        device.unsubscribe(loop=loop)
-    loop.close()
-
-
-async def a_sync():
-    scanner = DeviceScanner(HEART_RATE_MONITOR)
-    async for device in scanner.ascan():
-        await device.asubscribe(lambda heart_rate: print(f"Heart rate: {heart_rate}"))
-        await asyncio.sleep(10)
-        await device.aunsubscribe()
+    async for device in scanner.scan():
+        i = 0
+        async for heart_rate in device.subscribe():
+            print(f"Heart rate: {heart_rate}")
+            i += 1
+            if i == 10:
+                break
+        await device.unsubscribe()
 
 
 if __name__ == "__main__":
-    print("SYNC__________")
-    sync()
-    print("ASYNC__________")
-    # asyncio.run(a_sync())
+    asyncio.run(run())
