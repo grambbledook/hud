@@ -79,9 +79,10 @@ class DeviceScanner(object):
         gen = self.ascan()
         try:
             while True:
-                yield loop.run_until_complete(gen.__anext__())
-        except StopAsyncIteration:
-            pass
+                next_val = loop.run_until_complete(gen.__anext__())
+                yield next_val
+        except StopAsyncIteration as e:
+            print(e)
 
     async def ascan(self) -> AsyncGenerator[DeviceHandle, None]:
         scanner = BleakScanner()
@@ -103,18 +104,19 @@ def sync():
         device.subscribe(lambda heart_rate: print(f"Heart rate: {heart_rate}"), loop=loop)
         sleep(10)
         device.unsubscribe(loop=loop)
+    loop.close()
 
 
 async def a_sync():
     scanner = DeviceScanner(HEART_RATE_MONITOR)
     async for device in scanner.ascan():
-        await device.subscribe(lambda heart_rate: print(f"Heart rate: {heart_rate}"))
+        await device.asubscribe(lambda heart_rate: print(f"Heart rate: {heart_rate}"))
         await asyncio.sleep(10)
-        await device.unsubscribe()
+        await device.aunsubscribe()
 
 
 if __name__ == "__main__":
     print("SYNC__________")
     sync()
     print("ASYNC__________")
-    asyncio.run(a_sync())
+    # asyncio.run(a_sync())
