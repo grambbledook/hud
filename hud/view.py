@@ -5,9 +5,9 @@ from typing import Generic, TypeVar, AsyncGenerator
 import qasync
 from PyQt5.QtCore import QThread, pyqtSignal, Qt
 from PyQt5.QtWidgets import QApplication, QMainWindow, QPushButton, QLabel, QVBoxLayout, QWidget, QDialog, QListWidget, \
-    QListWidgetItem
+    QListWidgetItem, QGridLayout
 
-from model import DeviceHandle, DeviceScanner, HEART_RATE_MONITOR
+from hud.model import DeviceHandle, DeviceScanner, HEART_RATE_MONITOR, SPEED_SENSOR, CADENCE_SENSOR, POWER_METER, Device
 
 T = TypeVar('T')
 
@@ -84,13 +84,13 @@ class DeviceDialog(QDialog):
         self.accept()
 
 
-class MainWindow(QMainWindow):
-    update_metrics_thread = None
-    thread = None
+class DevicePanel(QMainWindow):
+    device_selected_signal = pyqtSignal(DeviceHandle)
 
-    def __init__(self, parent=None):
+    def __init__(self, device: Device, parent=None):
         super().__init__(parent)
-        self.selectButton = QPushButton("Select", self)
+        self.device = device
+        self.selectButton = QPushButton(f"Select {self.device.type}", self)
         self.deviceLabel = QLabel("No device selected", self)
         self.metricLabel = QLabel("No metrics available", self)
 
@@ -114,31 +114,60 @@ class MainWindow(QMainWindow):
         dialog.thread = ScanThread(DeviceScanner(HEART_RATE_MONITOR).scan())
         dialog.thread.deviceFound.connect(dialog.show_device)
         dialog.device_selected.connect(self.device_selected)
+        # dialog.device_selected.connect(lambda x:  self.device_selected_signal.emit(x))
 
         dialog.thread.start()
         dialog.exec_()
 
     def device_selected(self, device: DeviceHandle):
-        self.disconnect()
-
-        self.update_selected_device(device)
-
-    def disconnect(self):
-        if self.update_metrics_thread:
-            self.update_metrics_thread.stop()
-
-    def update_selected_device(self, device: DeviceHandle):
+        self.device_selected_signal.emit(device)
         self.deviceLabel.setText(f"Device: {device.name}")
-        self.update_metrics_thread = UpdateMetricsThread(device.subscribe())
-        self.update_metrics_thread.value_updated.connect(self.update_metrics)
-        self.update_metrics_thread.start()
+
 
     def update_metrics(self, value):
         self.metricLabel.setText(f"Value: {value}")
 
+class HUDView(QMainWindow):
+    shutdown_signal = pyqtSignal()  # Signal to shutdown the application
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.layout = QGridLayout()
+        self.centralWidget = QWidget(self)
+        self.centralWidget.setLayout(self.layout)
+        self.setCentralWidget(self.centralWidget)
+
+        self.heart_rate_monitor = DevicePanel(HEART_RATE_MONITOR)
+        self.layout.addWidget(self.heart_rate_monitor, 0, 0)
+
+        self.cadence_sensor = DevicePanel(CADENCE_SENSOR)
+        self.layout.addWidget(self.cadence_sensor, 0, 1)
+
+        self.power_meter = DevicePanel(POWER_METER)
+        self.layout.addWidget(self.power_meter, 1, 0)
+
+        self.speed_sensor = DevicePanel(SPEED_SENSOR)
+        self.layout.addWidget(self.speed_sensor, 1, 1)
+
+    def update_heart_rate(self, value):
+        self.heart_rate_monitor.update_metrics(value)
+
+    def update_cadence(self, value):
+        self.cadence_sensor.update_metrics(value)
+
+    def update_power(self, value):
+        self.power_meter.update_metrics(value)
+
+    def update_speed(self, value):
+        self.speed_sensor.update_metrics(value)
+
+    def closeEvent(self, event):
+        self.shutdown_signal.emit()
+        event.accept()
+
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-    window = MainWindow()
+    window = HUDView()
     window.show()
     sys.exit(app.exec_())

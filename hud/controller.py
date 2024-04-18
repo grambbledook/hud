@@ -1,104 +1,121 @@
 import asyncio
-from collections import namedtuple
-from typing import TypeVar, Generic, AsyncGenerator
+from typing import Callable, Generic, Coroutine, AsyncGenerator
 
-from bleak import BleakScanner, BleakClient, BleakGATTCharacteristic
+import qasync
+from PyQt5.QtCore import QThread
 
-from hud.two_way_generator import AsyncBuffer
+from hud.model import HUDModel, T, DeviceHandle
 
-Device = namedtuple(
-    'DeviceService',
-    ['service_uuid', 'characteristic_uuid', 'type', 'transformer']
-)
-
-HEART_RATE_MONITOR = Device(
-    "0000180d-0000-1000-8000-00805f9b34fb",
-    "00002a37-0000-1000-8000-00805f9b34fb",
-    "Heart Rate Monitor",
-    lambda _, data: data[1],
-)
-
-CADENCE_SENSOR = Device(
-    "00001816-0000-1000-8000-00805f9b34fb",
-    "00002a5b-0000-1000-8000-00805f9b34fb",
-    "Cadence Sensor",
-    lambda _, data: data[1],
-)
-
-SPEED_SENSOR = Device(
-    "00001816-0000-1000-8000-00805f9b34fb",
-    "00002a5b-0000-1000-8000-00805f9b34fb",
-    "Speed Sensor",
-    lambda _, data: data[1],
-)
-
-POWER_METER = Device(
-    "00001818-0000-1000-8000-00805f9b34fb",
-    "00002a63-0000-1000-8000-00805f9b34fb",
-    "Power Meter",
-    lambda _, data: data[1],
-)
-
-T = TypeVar('T')
+from hud.view import HUDView
 
 
-class DeviceHandle(Generic[T]):
-    def __init__(self, name: str, client: BleakClient, device: Device):
-        self.name: str = name
-        self.device: Device = device
-        self.client: BleakClient = client
+class Controller:
+    def __init__(self, model: HUDModel, view: HUDView):
+        self.model = model
+        self.view = view
+        self.loop = asyncio.new_event_loop()
 
-    async def subscribe(self) -> AsyncGenerator[T, None]:
-        queue = asyncio.Queue()
+        self.view.heart_rate_monitor.device_selected_signal.connect(self.set_heart_rate_monitor)
+        # self.view.cadence_sensor.device_selected_signal.connect(
+        #     lambda x: self.loop.run_until_complete(self.set_cadence_sensor(x))
+        # )
+        # self.view.power_meter.device_selected_signal.connect(self.set_power_meter)
+        # self.view.speed_sensor.device_selected_signal.connect(self.set_speed_sensor)
+        #
+        self.view.shutdown_signal.connect(self.shut_down)
 
-        async def on_data(characteristic: BleakGATTCharacteristic, data: bytearray):
-            transformed = self.device.transformer(characteristic, data)
-            await queue.put(transformed)
+    def set_heart_rate_monitor(self, device: DeviceHandle[T]):
+        if self.model.heart_rate_monitor:
+            ControllerTask(self.model.heart_rate_monitor.unsubscribe()).start()
 
-        await self.client.connect()
-        await self.client.start_notify(self.device.characteristic_uuid, callback=on_data)
+        self.model.heart_rate_monitor = device
+        ProducerTask(
+            self.model.heart_rate_monitor.start(),
+            self.heart_rate_data_received
+        ).start()
 
-        while True:
-            value = await queue.get()
-            queue.task_done()
-            yield value
+    async def set_cadence_sensor(self, device: DeviceHandle[T]):
+        if self.model.cadence_sensor:
+            await self.model.cadence_sensor.unsubscribe()
 
-    async def unsubscribe(self):
-        if not self.client:
-            return
+        self.model.set_cadence_sensor(device)
+        await device.subscribe(self.cadence_data_received)
 
-        await self.client.stop_notify(self.device.characteristic_uuid)
-        await self.client.disconnect()
+    async def set_power_meter(self, device: DeviceHandle[T]):
+        if self.model.power_meter:
+            await self.model.power_meter.unsubscribe()
+
+        self.model.set_power_meter(device)
+        await device.subscribe(self.power_data_received)
+
+    async def set_speed_sensor(self, device: DeviceHandle[T]):
+        if self.model.speed_sensor:
+            await self.model.speed_sensor.unsubscribe()
+
+        self.model.set_speed_sensor(device)
+        await device.subscribe(self.speed_data_received)
+
+    def heart_rate_data_received(self, data: T):
+        print(data)
+        self.model.update_heart_rate(data)
+        self.view.update_heart_rate(self.model.state.heart_rate)
+
+    def cadence_data_received(self, data: T):
+        self.model.update_cadence(data)
+        self.view.update_cadence(self.model.state.cadence)
+
+    def power_data_received(self, data: T):
+        self.model.update_power(data)
+        self.view.update_power(self.model.state.power)
+
+    def speed_data_received(self, data: T):
+        self.model.update_speed(data)
+        self.view.update_speed(self.model.state.speed)
+
+    def shut_down(self):
+        self.loop.stop()
+        self.loop.close()
 
 
-class DeviceScanner(object):
-    def __init__(self, device: Device):
-        self.device: Device = device
+class ControllerTask(QThread, Generic[T]):
+    def __init__(self, callable: Coroutine, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.callable = callable
 
-    async def scan(self) -> AsyncGenerator[DeviceHandle, None]:
-        scanner = BleakScanner()
-        address_to_device_and_advertisement_data = await scanner.discover(return_adv=True)
+    def run(self):
+        loop = qasync.QEventLoop(self)
+        asyncio.set_event_loop(loop)
 
-        for address, (device, advertisement_data) in address_to_device_and_advertisement_data.items():
-            if self.device.service_uuid in advertisement_data.service_uuids:
-                yield DeviceHandle(
-                    name=device.name or address,
-                    client=BleakClient(device),
-                    device=self.device,
-                )
+        print("Running callable")
+        loop.run_until_complete(self.callable)
+        print("Done")
+
+    def processEvents(self):
+        pass
 
 
-async def run():
-    scanner = DeviceScanner(HEART_RATE_MONITOR)
-    async for device in scanner.scan():
-        i = 0
-        async for heart_rate in device.subscribe():
-            print(f"Heart rate: {heart_rate}")
-            i += 1
-            if i == 10:
+class ProducerTask(QThread, Generic[T]):
+    def __init__(self, generator: AsyncGenerator[T, None], emitter, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._is_running = True
+        self.generator = generator
+        self.emitter = emitter
+
+    def run(self):
+        loop = qasync.QEventLoop(self)
+        asyncio.set_event_loop(loop)
+
+        loop.run_until_complete(self.async_generator_to_signal())
+
+    async def async_generator_to_signal(self):
+        async for value in self.generator:
+            if not self._is_running:
                 break
-        await device.unsubscribe()
 
+            self.emitter(value)
 
-if __name__ == "__main__":
-    asyncio.run(run())
+    def stop(self):
+        self._is_running = False
+
+    def processEvents(self):
+        pass
