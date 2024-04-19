@@ -148,16 +148,16 @@ class HUDView(QMainWindow):
         self.centralWidget.setLayout(self.layout)
         self.setCentralWidget(self.centralWidget)
 
-        self.heart_rate_monitor = DevicePanel(device=HEART_RATE_MONITOR, icon_path="assets/hrm.png")
+        self.heart_rate_monitor = DevicePanel(device=HEART_RATE_MONITOR, icon_path="assets/hrm2.png")
         self.layout.addWidget(self.heart_rate_monitor, 0, 0)
 
-        self.cadence_sensor = DevicePanel(device=CADENCE_SENSOR, icon_path="assets/cad.png")
+        self.cadence_sensor = DevicePanel(device=CADENCE_SENSOR, icon_path="assets/cad2.png")
         self.layout.addWidget(self.cadence_sensor, 0, 1)
 
-        self.power_meter = DevicePanel(device=POWER_METER, icon_path="assets/pow.png")
+        self.power_meter = DevicePanel(device=POWER_METER, icon_path="assets/pow2.png")
         self.layout.addWidget(self.power_meter, 1, 0)
 
-        self.speed_sensor = DevicePanel(device=SPEED_SENSOR, icon_path="assets/spd.png")
+        self.speed_sensor = DevicePanel(device=SPEED_SENSOR, icon_path="assets/spd2.png")
         self.layout.addWidget(self.speed_sensor, 1, 1)
 
         self.setWindowFlags(Qt.WindowStaysOnTopHint | Qt.FramelessWindowHint)
@@ -165,7 +165,7 @@ class HUDView(QMainWindow):
 
         # Create a QSystemTrayIcon
         self.tray_icon = QSystemTrayIcon(self)
-        self.tray_icon.setIcon(QIcon("assets/hrm.png"))  # Set your app icon
+        self.tray_icon.setIcon(QIcon("assets/hrm2.png"))  # Set your app icon
 
         # Create a QMenu
         self.tray_icon_menu = QMenu(self)
