@@ -4,6 +4,7 @@ from typing import Generic, TypeVar, AsyncGenerator
 
 import qasync
 from PyQt5.QtCore import QThread, pyqtSignal, Qt
+from PyQt5.QtGui import QIcon, QPixmap
 from PyQt5.QtWidgets import QApplication, QMainWindow, QPushButton, QLabel, QVBoxLayout, QWidget, QDialog, QListWidget, \
     QListWidgetItem, QGridLayout
 
@@ -84,18 +85,27 @@ class DeviceDialog(QDialog):
         self.accept()
 
 
+class ClickableLabel(QLabel):
+    clicked = pyqtSignal()
+
+    def mousePressEvent(self, event):
+        self.clicked.emit()
+
+
 class DevicePanel(QMainWindow):
     device_selected_signal = pyqtSignal(DeviceHandle)
 
-    def __init__(self, device: Device, parent=None):
+    def __init__(self, icon_path: str, device: Device, parent=None):
         super().__init__(parent)
         self.device = device
-        self.selectButton = QPushButton(f"Select {self.device.type}", self)
+        self.selectIcon = ClickableLabel(self)
+        pixmap = QPixmap(icon_path)
+        self.selectIcon.setPixmap(pixmap)
         self.deviceLabel = QLabel("No device selected", self)
         self.metricLabel = QLabel("No metrics available", self)
 
         self.layout = QVBoxLayout()
-        self.layout.addWidget(self.selectButton)
+        self.layout.addWidget(self.selectIcon)
         self.layout.addWidget(self.deviceLabel)
         self.layout.addWidget(self.metricLabel)
 
@@ -103,7 +113,7 @@ class DevicePanel(QMainWindow):
         self.centralWidget.setLayout(self.layout)
         self.setCentralWidget(self.centralWidget)
 
-        self.selectButton.clicked.connect(self.show_select_device_dialog)
+        self.selectIcon.clicked.connect(self.show_select_device_dialog)
 
     def closeEvent(self, event):
         self.disconnect()
@@ -123,9 +133,9 @@ class DevicePanel(QMainWindow):
         self.device_selected_signal.emit(device)
         self.deviceLabel.setText(f"Device: {device.name}")
 
-
     def update_metrics(self, value):
         self.metricLabel.setText(f"Value: {value}")
+
 
 class HUDView(QMainWindow):
     shutdown_signal = pyqtSignal()  # Signal to shutdown the application
@@ -137,16 +147,16 @@ class HUDView(QMainWindow):
         self.centralWidget.setLayout(self.layout)
         self.setCentralWidget(self.centralWidget)
 
-        self.heart_rate_monitor = DevicePanel(HEART_RATE_MONITOR)
+        self.heart_rate_monitor = DevicePanel(device=HEART_RATE_MONITOR, icon_path="assets/hrm.png")
         self.layout.addWidget(self.heart_rate_monitor, 0, 0)
 
-        self.cadence_sensor = DevicePanel(CADENCE_SENSOR)
+        self.cadence_sensor = DevicePanel(device=CADENCE_SENSOR, icon_path="assets/cad.png")
         self.layout.addWidget(self.cadence_sensor, 0, 1)
 
-        self.power_meter = DevicePanel(POWER_METER)
+        self.power_meter = DevicePanel(device=POWER_METER, icon_path="assets/pow.png")
         self.layout.addWidget(self.power_meter, 1, 0)
 
-        self.speed_sensor = DevicePanel(SPEED_SENSOR)
+        self.speed_sensor = DevicePanel(device=SPEED_SENSOR, icon_path="assets/spd.png")
         self.layout.addWidget(self.speed_sensor, 1, 1)
 
     def update_heart_rate(self, value):
