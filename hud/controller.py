@@ -73,6 +73,18 @@ class Controller:
         self.view.update_speed(self.model.state.speed)
 
     def shut_down(self):
+        if self.model.heart_rate_monitor:
+            ControllerTask(self.model.heart_rate_monitor.unsubscribe()).start()
+
+        if self.model.cadence_sensor:
+            ControllerTask(self.model.cadence_sensor.unsubscribe()).start()
+
+        if self.model.power_meter:
+            ControllerTask(self.model.power_meter.unsubscribe()).start()
+
+        if self.model.speed_sensor:
+            ControllerTask(self.model.speed_sensor.unsubscribe()).start()
+
         self.loop.stop()
         self.loop.close()
 

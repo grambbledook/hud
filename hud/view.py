@@ -3,10 +3,10 @@ import sys
 from typing import Generic, TypeVar, AsyncGenerator
 
 import qasync
-from PyQt5.QtCore import QThread, pyqtSignal, Qt
-from PyQt5.QtGui import QIcon, QPixmap
+from PyQt5.QtCore import QThread, pyqtSignal, Qt, QPoint, QEvent
+from PyQt5.QtGui import QIcon, QPixmap, QColor
 from PyQt5.QtWidgets import QApplication, QMainWindow, QPushButton, QLabel, QVBoxLayout, QWidget, QDialog, QListWidget, \
-    QListWidgetItem, QGridLayout
+    QListWidgetItem, QGridLayout, QSystemTrayIcon, QMenu, QAction
 
 from hud.model import DeviceHandle, DeviceScanner, HEART_RATE_MONITOR, SPEED_SENSOR, CADENCE_SENSOR, POWER_METER, Device
 
@@ -102,7 +102,9 @@ class DevicePanel(QMainWindow):
         pixmap = QPixmap(icon_path)
         self.selectIcon.setPixmap(pixmap)
         self.deviceLabel = QLabel("No device selected", self)
+        # self.deviceLabel.setStyleSheet("color: white")
         self.metricLabel = QLabel("No metrics available", self)
+        # self.metricLabel.setStyleSheet("color: white")
 
         self.layout = QVBoxLayout()
         self.layout.addWidget(self.selectIcon)
@@ -124,7 +126,6 @@ class DevicePanel(QMainWindow):
         dialog.thread = ScanThread(DeviceScanner(HEART_RATE_MONITOR).scan())
         dialog.thread.deviceFound.connect(dialog.show_device)
         dialog.device_selected.connect(self.device_selected)
-        # dialog.device_selected.connect(lambda x:  self.device_selected_signal.emit(x))
 
         dialog.thread.start()
         dialog.exec_()
@@ -138,7 +139,7 @@ class DevicePanel(QMainWindow):
 
 
 class HUDView(QMainWindow):
-    shutdown_signal = pyqtSignal()  # Signal to shutdown the application
+    shutdown_signal = pyqtSignal()
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -159,6 +160,42 @@ class HUDView(QMainWindow):
         self.speed_sensor = DevicePanel(device=SPEED_SENSOR, icon_path="assets/spd.png")
         self.layout.addWidget(self.speed_sensor, 1, 1)
 
+        self.setWindowFlags(Qt.WindowStaysOnTopHint | Qt.FramelessWindowHint)
+        # Create a QSystemTrayIcon
+        self.tray_icon = QSystemTrayIcon(self)
+        self.tray_icon.setIcon(QIcon("assets/hrm.png"))  # Set your app icon
+
+        # Create a QMenu
+        self.tray_icon_menu = QMenu(self)
+        # Create a QAction for quitting the app
+        quit_action = QAction("Quit", self)
+        quit_action.triggered.connect(self.quit_app)
+        # Add the actions to the menu
+        self.tray_icon_menu.addAction(quit_action)
+
+        # Set the menu for the tray icon
+        self.tray_icon.setContextMenu(self.tray_icon_menu)
+
+        # Show the tray icon
+        self.tray_icon.show()
+
+        self.m_drag = False
+        self.m_DragPosition = QPoint()
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self.m_drag = True
+            self.m_DragPosition = event.globalPos() - self.pos()
+            event.accept()
+
+    def mouseMoveEvent(self, event):
+        if event.buttons() == Qt.LeftButton and self.m_drag:
+            self.move(event.globalPos() - self.m_DragPosition)
+            event.accept()
+
+    def mouseReleaseEvent(self, event):
+        self.m_drag = False
+
     def update_heart_rate(self, value):
         self.heart_rate_monitor.update_metrics(value)
 
@@ -174,6 +211,11 @@ class HUDView(QMainWindow):
     def closeEvent(self, event):
         self.shutdown_signal.emit()
         event.accept()
+
+    def quit_app(self):
+        self.tray_icon.hide()
+        self.shutdown_signal.emit()
+        QApplication.quit()
 
 
 if __name__ == "__main__":
