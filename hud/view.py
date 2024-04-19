@@ -4,7 +4,7 @@ from typing import Generic, TypeVar, AsyncGenerator
 
 import qasync
 from PyQt5.QtCore import QThread, pyqtSignal, Qt, QPoint, QEvent
-from PyQt5.QtGui import QIcon, QPixmap, QColor
+from PyQt5.QtGui import QIcon, QPixmap, QColor, QPainter, QBrush
 from PyQt5.QtWidgets import QApplication, QMainWindow, QPushButton, QLabel, QVBoxLayout, QWidget, QDialog, QListWidget, \
     QListWidgetItem, QGridLayout, QSystemTrayIcon, QMenu, QAction
 
@@ -102,9 +102,9 @@ class DevicePanel(QMainWindow):
         pixmap = QPixmap(icon_path)
         self.selectIcon.setPixmap(pixmap)
         self.deviceLabel = QLabel("No device selected", self)
-        # self.deviceLabel.setStyleSheet("color: white")
+        self.deviceLabel.setStyleSheet("color: white")
         self.metricLabel = QLabel("No metrics available", self)
-        # self.metricLabel.setStyleSheet("color: white")
+        self.metricLabel.setStyleSheet("color: white")
 
         self.layout = QVBoxLayout()
         self.layout.addWidget(self.selectIcon)
@@ -161,6 +161,8 @@ class HUDView(QMainWindow):
         self.layout.addWidget(self.speed_sensor, 1, 1)
 
         self.setWindowFlags(Qt.WindowStaysOnTopHint | Qt.FramelessWindowHint)
+        self.setAttribute(Qt.WA_TranslucentBackground)
+
         # Create a QSystemTrayIcon
         self.tray_icon = QSystemTrayIcon(self)
         self.tray_icon.setIcon(QIcon("assets/hrm.png"))  # Set your app icon
@@ -192,6 +194,12 @@ class HUDView(QMainWindow):
         if event.buttons() == Qt.LeftButton and self.m_drag:
             self.move(event.globalPos() - self.m_DragPosition)
             event.accept()
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setOpacity(0.25)  # Set the opacity
+        painter.setBrush(QBrush(QColor(0, 0, 0)))  # Set the color to black
+        painter.drawRect(self.rect())
 
     def mouseReleaseEvent(self, event):
         self.m_drag = False
