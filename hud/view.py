@@ -1,88 +1,12 @@
-import asyncio
 import sys
-from typing import Generic, TypeVar, AsyncGenerator
 
-import qasync
-from PyQt5.QtCore import QThread, pyqtSignal, Qt, QPoint
+from PyQt5.QtCore import pyqtSignal, Qt, QPoint
 from PyQt5.QtGui import QIcon, QPixmap, QColor, QPainter, QBrush
 from PyQt5.QtWidgets import QApplication, QMainWindow, QLabel, QVBoxLayout, QWidget, QDialog, QListWidget, \
-    QListWidgetItem, QGridLayout, QSystemTrayIcon, QMenu, QAction
+    QListWidgetItem, QGridLayout, QSystemTrayIcon, QMenu, QAction, QHBoxLayout
 
-from hud.model import DeviceHandle, DeviceScanner, HEART_RATE_MONITOR, SPEED_SENSOR, CADENCE_SENSOR, POWER_METER, Device
-
-T = TypeVar('T')
-
-
-class WorkerThread(QThread, Generic[T]):
-    def __init__(self, generator: AsyncGenerator[T, None], *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._is_running = True
-        self.generator = generator
-
-    def run(self):
-        loop = qasync.QEventLoop(self)
-        asyncio.set_event_loop(loop)
-
-        loop.run_until_complete(self.async_generator_to_signal())
-
-    async def async_generator_to_signal(self):
-        async for value in self.generator:
-            self.emit(value)
-
-    def emit(self, value: T):
-        pass
-
-    def processEvents(self):
-        pass
-
-    def stop(self):
-        self._is_running = False
-
-
-class ScanThread(WorkerThread):
-    deviceFound = pyqtSignal(DeviceHandle)
-
-    def __init__(self, generator, *args, **kwargs):
-        super().__init__(generator, *args, **kwargs)
-
-    def emit(self, value):
-        self.deviceFound.emit(value)
-
-
-class UpdateMetricsThread(WorkerThread):
-    value_updated = pyqtSignal(int)
-
-    def __init__(self, generator, *args, **kwargs):
-        super().__init__(generator, *args, **kwargs)
-
-    def emit(self, value):
-        self.value_updated.emit(value)
-
-
-class DeviceDialog(QDialog):
-    device_selected = pyqtSignal(DeviceHandle)
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.listWidget = QListWidget(self)
-        self.layout = QVBoxLayout(self)
-        self.layout.addWidget(self.listWidget)
-        self.listWidget.itemDoubleClicked.connect(self.select_device)
-
-    def closeEvent(self, event):
-        if self.thread:
-            self.thread.stop()
-        event.accept()
-
-    def show_device(self, device):
-        item = QListWidgetItem(device.name)
-        item.setData(Qt.UserRole, device)
-        self.listWidget.addItem(item)
-
-    def select_device(self, item):
-        device = item.data(Qt.UserRole)
-        self.device_selected.emit(device)
-        self.accept()
+from hud.controller import DeviceChannel
+from hud.model import DeviceHandle, HEART_RATE_MONITOR, SPEED_SENSOR, CADENCE_SENSOR, POWER_METER, Device
 
 
 class ClickableLabel(QLabel):
@@ -92,94 +16,189 @@ class ClickableLabel(QLabel):
         self.clicked.emit()
 
 
-class DevicePanel(QMainWindow):
-    device_selected_signal = pyqtSignal(DeviceHandle)
+class DeviceDialog(QDialog):
+    selectDeviceSignal = pyqtSignal(object)
 
-    def __init__(self, icon_path: str, device: Device, parent=None):
+    def __init__(self, parent=None, channel: DeviceChannel = None):
         super().__init__(parent)
+        self.channel = channel
+
+        self.listWidget = QListWidget(self)
+        self.layout = QVBoxLayout(self)
+        self.layout.addWidget(self.listWidget)
+        self.listWidget.itemDoubleClicked.connect(self.selectDevice)
+        self.listWidget.setStyleSheet(
+            """
+                QListWidget {
+                    background-color: transparent;
+                    color: white;
+                }
+                QListWidget::item {
+                    background-color: #808080;
+                }
+            """
+        )
+
+        self.closeLabel = ClickableLabel(self)
+
+        pixmap = QPixmap("assets/ok.png")
+        self.closeLabel.setPixmap(pixmap)
+        self.layout.addWidget(self.closeLabel)
+        self.closeLabel.clicked.connect(self.onLabelClicked)
+
+        self.hLayout = QHBoxLayout()
+        self.hLayout.addStretch()
+        self.hLayout.addWidget(self.closeLabel)
+        self.hLayout.addStretch()
+        self.layout.addLayout(self.hLayout)
+        self.setWindowFlags(Qt.FramelessWindowHint | Qt.Dialog)
+        self.setAttribute(Qt.WA_TranslucentBackground)
+
+    def onLabelClicked(self):
+        self.close()
+
+    def closeEvent(self, event):
+        self.selectDeviceSignal.emit(None)
+        event.accept()
+
+    def showDevice(self, device):
+        item = QListWidgetItem(device.name)
+        item.setData(Qt.UserRole, device)
+        if self.listWidget.findItems(device.name, Qt.MatchExactly):
+            return
+        self.listWidget.addItem(item)
+
+    def selectDevice(self, item):
+        device = item.data(Qt.UserRole)
+
+        self.selectDeviceSignal.emit(device)
+        self.accept()
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setOpacity(0.75)  # Set the opacity
+        painter.setBrush(QBrush(QColor(0, 0, 0)))  # Set the color to black
+        painter.drawRect(self.rect())
+
+
+class DevicePanel(QMainWindow):
+    channel: DeviceChannel
+
+    def __init__(self, icon_path: str, device: Device, channel: DeviceChannel, parent=None):
+        super().__init__(parent)
+        self.dialog = None
+
         self.device = device
+
         self.selectIcon = ClickableLabel(self)
         pixmap = QPixmap(icon_path)
         self.selectIcon.setPixmap(pixmap)
-        self.deviceLabel = QLabel("No device selected", self)
-        self.deviceLabel.setStyleSheet("color: white")
+        self.selectIcon.setToolTip("No device selected")
+
         self.metricLabel = QLabel("No metrics available", self)
         self.metricLabel.setStyleSheet("color: white")
 
         self.layout = QVBoxLayout()
         self.layout.addWidget(self.selectIcon)
-        self.layout.addWidget(self.deviceLabel)
         self.layout.addWidget(self.metricLabel)
+
 
         self.centralWidget = QWidget(self)
         self.centralWidget.setLayout(self.layout)
         self.setCentralWidget(self.centralWidget)
 
-        self.selectIcon.clicked.connect(self.show_select_device_dialog)
+        self.selectIcon.clicked.connect(self.showSelectDeviceDialog)
+
+        self.channel = channel
+        self.channel.measurement_received.subscribe(self.updateMetrics)
 
     def closeEvent(self, event):
         self.disconnect()
         event.accept()
 
-    def show_select_device_dialog(self):
-        dialog = DeviceDialog(self)
-        dialog.thread = ScanThread(DeviceScanner(HEART_RATE_MONITOR).scan())
-        dialog.thread.deviceFound.connect(dialog.show_device)
-        dialog.device_selected.connect(self.device_selected)
+    def showSelectDeviceDialog(self):
+        self.dialog = DeviceDialog(self, channel=self.channel)
+        self.dialog.selectDeviceSignal.connect(self.deviceSelected)
 
-        dialog.thread.start()
-        dialog.exec_()
+        self.channel.device_found.subscribe(self.dialog.showDevice)
+        self.channel.scan_devices.notify("start")
 
-    def device_selected(self, device: DeviceHandle):
-        self.device_selected_signal.emit(device)
+        self.dialog.exec_()
+
+    def deviceSelected(self, device: DeviceHandle):
+        self.channel.scan_devices.notify("stop")
+        self.channel.device_found.unsubscribe(self.dialog.showDevice)
+        self.dialog = None
+
+        if device is None:
+            return
+
+        print(f"Device selected {device.name}")
+        self.channel.device_selected.notify(device)
+
         print(f"Device label updated {device.name}")
-        self.deviceLabel.setText(f"Device: {device.name}")
+        self.selectIcon.setToolTip(device.name)
 
-    def update_metrics(self, value):
+    def updateMetrics(self, value):
         self.metricLabel.setText(f"Value: {value}")
 
 
 class HUDView(QMainWindow):
     shutdown_signal = pyqtSignal()
 
-    def __init__(self, parent=None):
+    def __init__(
+            self,
+            hrm_channel: DeviceChannel,
+            cad_channel: DeviceChannel,
+            spd_channel: DeviceChannel,
+            pwr_channel: DeviceChannel,
+            parent=None,
+    ):
         super().__init__(parent)
+
         self.layout = QGridLayout()
         self.centralWidget = QWidget(self)
         self.centralWidget.setLayout(self.layout)
         self.setCentralWidget(self.centralWidget)
 
-        self.heart_rate_monitor = DevicePanel(device=HEART_RATE_MONITOR, icon_path="assets/hrm2.png")
+        self.heart_rate_monitor = DevicePanel(
+            channel=hrm_channel,
+            device=HEART_RATE_MONITOR,
+            icon_path="assets/hrm2.png",
+        )
         self.layout.addWidget(self.heart_rate_monitor, 0, 0)
 
-        self.cadence_sensor = DevicePanel(device=CADENCE_SENSOR, icon_path="assets/cad2.png")
+        self.cadence_sensor = DevicePanel(
+            channel=cad_channel,
+            device=CADENCE_SENSOR,
+            icon_path="assets/cad2.png",
+        )
         self.layout.addWidget(self.cadence_sensor, 0, 1)
 
-        self.power_meter = DevicePanel(device=POWER_METER, icon_path="assets/pow2.png")
+        self.power_meter = DevicePanel(
+            channel=pwr_channel,
+            device=POWER_METER,
+            icon_path="assets/pow2.png",
+        )
         self.layout.addWidget(self.power_meter, 1, 0)
 
-        self.speed_sensor = DevicePanel(device=SPEED_SENSOR, icon_path="assets/spd2.png")
+        self.speed_sensor = DevicePanel(
+            channel=spd_channel,
+            device=SPEED_SENSOR,
+            icon_path="assets/spd2.png",
+        )
         self.layout.addWidget(self.speed_sensor, 1, 1)
 
         self.setWindowFlags(Qt.WindowStaysOnTopHint | Qt.FramelessWindowHint)
         self.setAttribute(Qt.WA_TranslucentBackground)
 
-        # Create a QSystemTrayIcon
         self.tray_icon = QSystemTrayIcon(self)
         self.tray_icon.setIcon(QIcon("assets/hrm2.png"))  # Set your app icon
-
-        # Create a QMenu
         self.tray_icon_menu = QMenu(self)
-        # Create a QAction for quitting the app
         quit_action = QAction("Quit", self)
         quit_action.triggered.connect(self.quit_app)
-        # Add the actions to the menu
         self.tray_icon_menu.addAction(quit_action)
-
-        # Set the menu for the tray icon
         self.tray_icon.setContextMenu(self.tray_icon_menu)
-
-        # Show the tray icon
         self.tray_icon.show()
 
         self.m_drag = False
@@ -206,16 +225,16 @@ class HUDView(QMainWindow):
         self.m_drag = False
 
     def update_heart_rate(self, value):
-        self.heart_rate_monitor.update_metrics(value)
+        self.heart_rate_monitor.updateMetrics(value)
 
     def update_cadence(self, value):
-        self.cadence_sensor.update_metrics(value)
+        self.cadence_sensor.updateMetrics(value)
 
     def update_power(self, value):
-        self.power_meter.update_metrics(value)
+        self.power_meter.updateMetrics(value)
 
     def update_speed(self, value):
-        self.speed_sensor.update_metrics(value)
+        self.speed_sensor.updateMetrics(value)
 
     def closeEvent(self, event):
         self.shutdown_signal.emit()
