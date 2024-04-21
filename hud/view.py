@@ -12,6 +12,18 @@ from hud.model import DeviceHandle, HEART_RATE_MONITOR, SPEED_SENSOR, CADENCE_SE
 class ClickableLabel(QLabel):
     clicked = pyqtSignal()
 
+    def __init__(self, normal_icon_path, highlighted_icon_path, parent=None):
+        super().__init__(parent)
+        self.normal_icon_path = normal_icon_path
+        self.highlighted_icon_path = highlighted_icon_path
+        self.setPixmap(QPixmap(self.normal_icon_path))
+
+    def enterEvent(self, event):
+        self.setPixmap(QPixmap(self.highlighted_icon_path))
+
+    def leaveEvent(self, event):
+        self.setPixmap(QPixmap(self.normal_icon_path))
+
     def mousePressEvent(self, event):
         self.clicked.emit()
 
@@ -39,10 +51,7 @@ class DeviceDialog(QDialog):
             """
         )
 
-        self.closeLabel = ClickableLabel(self)
-
-        pixmap = QPixmap("assets/ok.png")
-        self.closeLabel.setPixmap(pixmap)
+        self.closeLabel = ClickableLabel("assets/ok.png", "assets/ok_high.png", self)
         self.layout.addWidget(self.closeLabel)
         self.closeLabel.clicked.connect(self.onLabelClicked)
 
@@ -84,15 +93,13 @@ class DeviceDialog(QDialog):
 class DevicePanel(QMainWindow):
     channel: DeviceChannel
 
-    def __init__(self, icon_path: str, device: Device, channel: DeviceChannel, parent=None):
+    def __init__(self, normal_icon_path: str, highlighted_icon_path: str, device: Device, channel: DeviceChannel, parent=None):
         super().__init__(parent)
         self.dialog = None
 
         self.device = device
 
-        self.selectIcon = ClickableLabel(self)
-        pixmap = QPixmap(icon_path)
-        self.selectIcon.setPixmap(pixmap)
+        self.selectIcon = ClickableLabel(normal_icon_path, highlighted_icon_path, self)
         self.selectIcon.setToolTip("No device selected")
 
         self.metricLabel = QLabel("No metrics available", self)
@@ -101,7 +108,6 @@ class DevicePanel(QMainWindow):
         self.layout = QVBoxLayout()
         self.layout.addWidget(self.selectIcon)
         self.layout.addWidget(self.metricLabel)
-
 
         self.centralWidget = QWidget(self)
         self.centralWidget.setLayout(self.layout)
@@ -164,28 +170,33 @@ class HUDView(QMainWindow):
         self.heart_rate_monitor = DevicePanel(
             channel=hrm_channel,
             device=HEART_RATE_MONITOR,
-            icon_path="assets/hrm2.png",
+            normal_icon_path="assets/hrm2.png",
+            highlighted_icon_path="assets/hrm2_high.png",
         )
         self.layout.addWidget(self.heart_rate_monitor, 0, 0)
 
         self.cadence_sensor = DevicePanel(
             channel=cad_channel,
             device=CADENCE_SENSOR,
-            icon_path="assets/cad2.png",
+            normal_icon_path="assets/cad2.png",
+            highlighted_icon_path="assets/cad2_high.png",
+
         )
         self.layout.addWidget(self.cadence_sensor, 0, 1)
 
         self.power_meter = DevicePanel(
             channel=pwr_channel,
             device=POWER_METER,
-            icon_path="assets/pow2.png",
+            normal_icon_path="assets/pwr2.png",
+            highlighted_icon_path="assets/pwr2_high.png",
         )
         self.layout.addWidget(self.power_meter, 1, 0)
 
         self.speed_sensor = DevicePanel(
             channel=spd_channel,
             device=SPEED_SENSOR,
-            icon_path="assets/spd2.png",
+            normal_icon_path="assets/spd2.png",
+            highlighted_icon_path="assets/spd2_high.png",
         )
         self.layout.addWidget(self.speed_sensor, 1, 1)
 
