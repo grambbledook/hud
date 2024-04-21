@@ -2,8 +2,8 @@ import sys
 from collections import namedtuple
 from time import sleep
 
-from PyQt5.QtCore import QThread, pyqtSignal, Qt
-from PyQt5.QtWidgets import QApplication, QMainWindow, QPushButton, QLabel, QVBoxLayout, QWidget, QDialog, QListWidget, \
+from PySide6.QtCore import QThread, Signal, Qt
+from PySide6.QtWidgets import QApplication, QMainWindow, QPushButton, QLabel, QVBoxLayout, QWidget, QDialog, QListWidget, \
     QListWidgetItem
 
 Stub = namedtuple('Stub', ['name', 'value'])
@@ -24,7 +24,7 @@ def measurements():
 
 
 class ScanThread(QThread):
-    deviceFound = pyqtSignal(Stub)
+    deviceFound = Signal(Stub)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -41,7 +41,7 @@ class ScanThread(QThread):
 
 
 class UpdateMetricsThread(QThread):
-    valueUpdated = pyqtSignal(int)
+    valueUpdated = Signal(int)
 
     def __init__(self, device, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -59,8 +59,7 @@ class UpdateMetricsThread(QThread):
 
 
 class DeviceDialog(QDialog):
-    deviceSelected = pyqtSignal(Stub)
-
+    deviceSelected = Signal(Stub)
     def __init__(self, parent=None):
         super().__init__(parent)
         self.listWidget = QListWidget(self)
@@ -106,7 +105,7 @@ class MainWindow(QMainWindow):
         self.thread = ScanThread()
         self.thread.deviceFound.connect(dialog.addDevice)
         self.thread.start()
-        dialog.exec_()
+        dialog.exec()
 
     def deviceSelected(self, device):
         if self.thread:
@@ -131,4 +130,4 @@ if __name__ == "__main__":
     app = QApplication(sys.argv)
     window = MainWindow()
     window.show()
-    sys.exit(app.exec_())
+    sys.exit(app.exec())

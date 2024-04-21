@@ -4,8 +4,8 @@ from collections import namedtuple
 from typing import Generic, TypeVar, AsyncGenerator
 
 import qasync
-from PyQt5.QtCore import QThread, pyqtSignal, Qt
-from PyQt5.QtWidgets import QApplication, QMainWindow, QPushButton, QLabel, QVBoxLayout, QWidget, QDialog, QListWidget, \
+from PySide6.QtCore import QThread, Signal, Qt
+from PySide6.QtWidgets import QApplication, QMainWindow, QPushButton, QLabel, QVBoxLayout, QWidget, QDialog, QListWidget, \
     QListWidgetItem
 
 Stub = namedtuple('Stub', ['name', 'value'])
@@ -38,13 +38,18 @@ class WorkerThread(QThread, Generic[T]):
         loop = qasync.QEventLoop(self)
         asyncio.set_event_loop(loop)
 
+        print("Starting loop")
         loop.run_until_complete(self.async_generator_to_signal())
+        print("Loop done")
 
     async def async_generator_to_signal(self):
+        print("Starting generator")
         async for value in self.generator:
-            self.emit(value)
+            print(f"Value generated: {value}")
+            self.emit0(value)
+            print(f"Value emtted: {value}")
 
-    def emit(self, value: T):
+    def emit0(self, value: T):
         pass
 
     def processEvents(self):
@@ -55,27 +60,27 @@ class WorkerThread(QThread, Generic[T]):
 
 
 class ScanThread(WorkerThread):
-    deviceFound = pyqtSignal(Stub)
+    deviceFound = Signal(Stub)
 
     def __init__(self, generator, *args, **kwargs):
         super().__init__(generator, *args, **kwargs)
 
-    def emit(self, value):
+    def emit0(self, value):
         self.deviceFound.emit(value)
 
 
 class UpdateMetricsThread(WorkerThread):
-    value_updated = pyqtSignal(int)
+    value_updated = Signal(int)
 
     def __init__(self, generator, *args, **kwargs):
         super().__init__(generator, *args, **kwargs)
 
-    def emit(self, value):
+    def emit0(self, value):
         self.value_updated.emit(value)
 
 
 class DeviceDialog(QDialog):
-    device_selected = pyqtSignal(Stub)
+    device_selected = Signal(Stub)
     thread: ScanThread = None
 
     def __init__(self, parent=None):
@@ -128,8 +133,12 @@ class MainWindow(QMainWindow):
         dialog.thread.deviceFound.connect(dialog.show_device)
         dialog.device_selected.connect(self.device_selected)
 
+        print("Dialog starting thread")
         dialog.thread.start()
-        dialog.exec_()
+        print("Thread started")
+        print("Showing dialog")
+        dialog.exec()
+        print("Dialog opened")
 
     def device_selected(self, device):
         if self.update_metrics_thread:
@@ -151,4 +160,4 @@ if __name__ == "__main__":
     app = QApplication(sys.argv)
     window = MainWindow()
     window.show()
-    sys.exit(app.exec_())
+    sys.exit(app.exec())
