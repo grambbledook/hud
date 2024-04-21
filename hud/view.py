@@ -3,9 +3,9 @@ import sys
 from typing import Generic, TypeVar, AsyncGenerator
 
 import qasync
-from PyQt5.QtCore import QThread, pyqtSignal, Qt, QPoint, QEvent
+from PyQt5.QtCore import QThread, pyqtSignal, Qt, QPoint
 from PyQt5.QtGui import QIcon, QPixmap, QColor, QPainter, QBrush
-from PyQt5.QtWidgets import QApplication, QMainWindow, QPushButton, QLabel, QVBoxLayout, QWidget, QDialog, QListWidget, \
+from PyQt5.QtWidgets import QApplication, QMainWindow, QLabel, QVBoxLayout, QWidget, QDialog, QListWidget, \
     QListWidgetItem, QGridLayout, QSystemTrayIcon, QMenu, QAction
 
 from hud.model import DeviceHandle, DeviceScanner, HEART_RATE_MONITOR, SPEED_SENSOR, CADENCE_SENSOR, POWER_METER, Device
@@ -132,6 +132,7 @@ class DevicePanel(QMainWindow):
 
     def device_selected(self, device: DeviceHandle):
         self.device_selected_signal.emit(device)
+        print(f"Device label updated {device.name}")
         self.deviceLabel.setText(f"Device: {device.name}")
 
     def update_metrics(self, value):

@@ -2,18 +2,36 @@ import asyncio
 from typing import Callable, Generic, Coroutine, AsyncGenerator
 
 import qasync
-from PyQt5.QtCore import QThread
+from PyQt5.QtCore import QThread, QRunnable, QThreadPool
 
 from hud.model import HUDModel, T, DeviceHandle
-
 from hud.view import HUDView
+
+
+class TaskPool:
+    def __init__(self, update_heartrate, update_cadence, update_power, update_speed):
+        self.tasks = {
+            "heart_rate_monitor": BLEConnection(update_heartrate),
+            "cadence_sensor": BLEConnection(update_cadence),
+            "power_meter": BLEConnection(update_power),
+            "speed_sensor": BLEConnection(update_speed),
+        }
+
+    def stop_all(self):
+        for task in self.tasks:
+            task.stop()
 
 
 class Controller:
     def __init__(self, model: HUDModel, view: HUDView):
         self.model = model
         self.view = view
-        self.loop = asyncio.new_event_loop()
+        self.workers = TaskPool(
+            self.heart_rate_data_received,
+            self.cadence_data_received,
+            self.power_data_received,
+            self.speed_data_received
+        )
 
         self.view.heart_rate_monitor.device_selected_signal.connect(self.set_heart_rate_monitor)
         # self.view.cadence_sensor.device_selected_signal.connect(
@@ -26,13 +44,20 @@ class Controller:
 
     def set_heart_rate_monitor(self, device: DeviceHandle[T]):
         if self.model.heart_rate_monitor:
-            ControllerTask(self.model.heart_rate_monitor.unsubscribe()).start()
+            print(f"Unsubscribing from device {self.model.heart_rate_monitor.name}")
+            task = ControllerTask(self.model.heart_rate_monitor.unsubscribe())
+            QThreadPool.globalInstance().start(task)
+            print(f"Unsubscribe task started")
 
         self.model.heart_rate_monitor = device
-        ProducerTask(
+        print(f"Subscribing to device {self.model.heart_rate_monitor.name}")
+        task = ProducerTask(
             self.model.heart_rate_monitor.start(),
             self.heart_rate_data_received
-        ).start()
+        )
+
+        QThreadPool.globalInstance().start(task)
+        print(f"Subscribe task started")
 
     async def set_cadence_sensor(self, device: DeviceHandle[T]):
         if self.model.cadence_sensor:
@@ -89,7 +114,7 @@ class Controller:
         self.loop.close()
 
 
-class ControllerTask(QThread, Generic[T]):
+class ControllerTask(QRunnable, Generic[T]):
     def __init__(self, callable: Coroutine, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.callable = callable
@@ -99,14 +124,57 @@ class ControllerTask(QThread, Generic[T]):
         asyncio.set_event_loop(loop)
 
         print("Running callable")
-        loop.run_until_complete(self.callable)
+        asyncio.run(self.callable)
         print("Done")
 
     def processEvents(self):
         pass
 
 
-class ProducerTask(QThread, Generic[T]):
+class BLEConnection(QThread):
+    _provider: Callable[[], AsyncGenerator[T, None]]
+    _async_generator: AsyncGenerator[T, None]
+
+    def __init__(self, emitter: Callable[[T], None], *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._connected = False
+        self._running = True
+        self._active = False
+        self._is_running = True
+        self.emitter = emitter
+
+    def run(self):
+        print(f"Running BLEConnection {self._provider}")
+        loop = qasync.QEventLoop(self)
+        asyncio.set_event_loop(loop)
+
+        print(f"Submitting BLEConnection {self._provider}")
+        loop.run_until_complete(self.execute())
+
+    async def execute(self):
+        while self._running:
+            if not self._active:
+                await asyncio.sleep(1)
+                continue
+
+            if not self._connected:
+                self._async_generator = await self._provider()
+                self._connected = True
+
+            async for value in self._async_generator:
+                if not self._is_running:
+                    break
+
+                self.emitter(value)
+
+    def stop(self):
+        self._is_running = False
+
+    def processEvents(self):
+        pass
+
+
+class ProducerTask(QRunnable, Generic[T]):
     def __init__(self, generator: AsyncGenerator[T, None], emitter, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._is_running = True
@@ -114,10 +182,9 @@ class ProducerTask(QThread, Generic[T]):
         self.emitter = emitter
 
     def run(self):
-        loop = qasync.QEventLoop(self)
-        asyncio.set_event_loop(loop)
-
-        loop.run_until_complete(self.async_generator_to_signal())
+        print(f"Running ProducerTask {self.generator}")
+        print(f"Submitting ProducerTask {self.generator}")
+        asyncio.run(self.async_generator_to_signal())
 
     async def async_generator_to_signal(self):
         async for value in self.generator:

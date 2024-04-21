@@ -1,6 +1,7 @@
 import asyncio
 import sys
 
+from PyQt5.QtCore import QThreadPool
 from qasync import QApplication, QEventLoop
 
 from hud.controller import Controller
@@ -17,6 +18,9 @@ if __name__ == "__main__":
     model = HUDModel()
 
     controller = Controller(model, view)
-
+    QThreadPool.globalInstance().setMaxThreadCount(10)
+    QThreadPool.globalInstance().setStackSize(2048)  # Set the stack size to 2048 bytes# Set the maximum thread count to 10
     view.show()
-    sys.exit(app.exec_())
+
+    with loop:
+        sys.exit(app.exec_())
