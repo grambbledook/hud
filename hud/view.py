@@ -93,7 +93,8 @@ class DeviceDialog(QDialog):
 class DevicePanel(QMainWindow):
     channel: DeviceChannel
 
-    def __init__(self, normal_icon_path: str, highlighted_icon_path: str, device: Device, channel: DeviceChannel, parent=None):
+    def __init__(self, normal_icon_path: str, highlighted_icon_path: str, device: Device, channel: DeviceChannel,
+                 parent=None):
         super().__init__(parent)
         self.dialog = None
 
@@ -102,12 +103,26 @@ class DevicePanel(QMainWindow):
         self.selectIcon = ClickableLabel(normal_icon_path, highlighted_icon_path, self)
         self.selectIcon.setToolTip("No device selected")
 
-        self.metricLabel = QLabel("No metrics available", self)
-        self.metricLabel.setStyleSheet("color: white")
+        self.metricLabel = QLabel("-/-", self)
+        self.metricLabel.setStyleSheet(
+            """
+                QLabel {
+                    color: white;
+                    font-weight: bold;
+                    font-size: 32px;
+                    text-align: center;
+                }
+            """
+        )
 
-        self.layout = QVBoxLayout()
-        self.layout.addWidget(self.selectIcon)
-        self.layout.addWidget(self.metricLabel)
+        # Create a QHBoxLayout, add the metricLabel to it, and add it to the main layout
+        self.layout = QGridLayout()
+        self.layout.addWidget(self.selectIcon, 0, 0, 1, 1, Qt.AlignCenter)
+        self.layout.addWidget(self.metricLabel, 1, 0, 1, 1, Qt.AlignCenter)
+
+        # self.layout = QVBoxLayout()
+        # self.layout.addWidget(self.selectIcon)
+        # self.layout.addWidget(self.metricLabel)
 
         self.centralWidget = QWidget(self)
         self.centralWidget.setLayout(self.layout)
@@ -146,7 +161,7 @@ class DevicePanel(QMainWindow):
         self.selectIcon.setToolTip(device.name)
 
     def updateMetrics(self, value):
-        self.metricLabel.setText(f"Value: {value}")
+        self.metricLabel.setText(str(value))
 
 
 class HUDView(QMainWindow):
@@ -170,16 +185,16 @@ class HUDView(QMainWindow):
         self.heart_rate_monitor = DevicePanel(
             channel=hrm_channel,
             device=HEART_RATE_MONITOR,
-            normal_icon_path="assets/hrm2.png",
-            highlighted_icon_path="assets/hrm2_high.png",
+            normal_icon_path="assets/hrm.png",
+            highlighted_icon_path="assets/hrm_high.png",
         )
         self.layout.addWidget(self.heart_rate_monitor, 0, 0)
 
         self.cadence_sensor = DevicePanel(
             channel=cad_channel,
             device=CADENCE_SENSOR,
-            normal_icon_path="assets/cad2.png",
-            highlighted_icon_path="assets/cad2_high.png",
+            normal_icon_path="assets/cad.png",
+            highlighted_icon_path="assets/cad_high.png",
 
         )
         self.layout.addWidget(self.cadence_sensor, 0, 1)
@@ -187,16 +202,16 @@ class HUDView(QMainWindow):
         self.power_meter = DevicePanel(
             channel=pwr_channel,
             device=POWER_METER,
-            normal_icon_path="assets/pwr2.png",
-            highlighted_icon_path="assets/pwr2_high.png",
+            normal_icon_path="assets/pwr.png",
+            highlighted_icon_path="assets/pwr_high.png",
         )
         self.layout.addWidget(self.power_meter, 1, 0)
 
         self.speed_sensor = DevicePanel(
             channel=spd_channel,
             device=SPEED_SENSOR,
-            normal_icon_path="assets/spd2.png",
-            highlighted_icon_path="assets/spd2_high.png",
+            normal_icon_path="assets/spd.png",
+            highlighted_icon_path="assets/spd_high.png",
         )
         self.layout.addWidget(self.speed_sensor, 1, 1)
 
@@ -204,7 +219,7 @@ class HUDView(QMainWindow):
         self.setAttribute(Qt.WA_TranslucentBackground)
 
         self.tray_icon = QSystemTrayIcon(self)
-        self.tray_icon.setIcon(QIcon("assets/hrm2.png"))  # Set your app icon
+        self.tray_icon.setIcon(QIcon("assets/hrm.png"))  # Set your app icon
         self.tray_icon_menu = QMenu(self)
         quit_action = QAction("Quit", self)
         quit_action.triggered.connect(self.quit_app)
