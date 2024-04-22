@@ -31,14 +31,19 @@ class ClickableLabel(QLabel):
 class DeviceDialog(QDialog):
     selectDeviceSignal = pyqtSignal(object)
 
+    selectedDevice = None
+
     def __init__(self, parent=None, channel: DeviceChannel = None):
         super().__init__(parent)
         self.channel = channel
 
         self.listWidget = QListWidget(self)
+        self.listWidget.itemClicked.connect(self.selectItem)
+        self.listWidget.itemDoubleClicked.connect(self.selectDevice)
+
         self.layout = QVBoxLayout(self)
         self.layout.addWidget(self.listWidget)
-        self.listWidget.itemDoubleClicked.connect(self.selectDevice)
+
         self.listWidget.setStyleSheet(
             """
                 QListWidget {
@@ -46,6 +51,9 @@ class DeviceDialog(QDialog):
                     color: white;
                 }
                 QListWidget::item {
+                    background-color: transparent;
+                }
+                QListWidget::item:selected {
                     background-color: #808080;
                 }
             """
@@ -63,11 +71,13 @@ class DeviceDialog(QDialog):
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.Dialog)
         self.setAttribute(Qt.WA_TranslucentBackground)
 
+        self.selectedDevice = None
+
     def onLabelClicked(self):
+        self.selectDeviceSignal.emit(self.selectedDevice)
         self.close()
 
     def closeEvent(self, event):
-        self.selectDeviceSignal.emit(None)
         event.accept()
 
     def showDevice(self, device):
@@ -76,6 +86,9 @@ class DeviceDialog(QDialog):
         if self.listWidget.findItems(device.name, Qt.MatchExactly):
             return
         self.listWidget.addItem(item)
+
+    def selectItem(self, item):
+        self.selectedDevice = item.data(Qt.UserRole)
 
     def selectDevice(self, item):
         device = item.data(Qt.UserRole)
