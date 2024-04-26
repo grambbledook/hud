@@ -18,6 +18,9 @@ class DeviceController(Protocol):
     def set_device(self, device: Device):
         ...
 
+    def stop(self):
+        ...
+
 
 class ClickableLabel(QLabel):
     clicked = pyqtSignal()
@@ -295,5 +298,5 @@ class HUDView(QMainWindow):
 
     def quit_app(self):
         self.tray_icon.hide()
-        self.shutdown_signal.emit()
+        self.controller.stop()
         QApplication.quit()

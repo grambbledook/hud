@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 from typing import Callable, TypeVar, Generic, Optional
 
-from hud.devices import Service, Device
+from hud.devices import Device
 from hud.events import MeasurementEvent, SpeedMeasurement, CadenceMeasurement, HrmMeasurement, PowerMeasurement
 
 T = TypeVar('T')
@@ -17,8 +17,6 @@ class Channel(Generic[T]):
 
     def subscribe(self, listener: Callable[[T], None]):
         self.listeners.append(listener)
-
-
 
 
 @dataclass
