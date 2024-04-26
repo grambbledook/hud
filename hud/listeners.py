@@ -1,6 +1,21 @@
 from typing import Callable, List
 
 
+class Channel:
+    def __init__(self, listener):
+        self.listener = listener
+        self._active = True
+
+    def notify(self, data: object):
+        self.listener(data)
+
+    def is_active(self):
+        return self._active
+
+    def close(self):
+        self._active = False
+
+
 class Listeners:
     def __init__(self):
         self.listeners: List[Callable[[object], None]] = []
@@ -18,7 +33,5 @@ class Listeners:
 
 class DeviceChannel:
     def __init__(self):
-        self.scan_devices = Listeners()
-        self.device_found = Listeners()
         self.device_selected = Listeners()
         self.measurement_received = Listeners()

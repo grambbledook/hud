@@ -1,12 +1,22 @@
-import sys
+from typing import Protocol
 
-from PyQt5.QtCore import pyqtSignal, Qt, QPoint
+from PyQt5.QtCore import pyqtSignal, Qt, QPoint, QTimer
 from PyQt5.QtGui import QIcon, QPixmap, QColor, QPainter, QBrush
 from PyQt5.QtWidgets import QApplication, QMainWindow, QLabel, QVBoxLayout, QWidget, QDialog, QListWidget, \
     QListWidgetItem, QGridLayout, QSystemTrayIcon, QMenu, QAction, QHBoxLayout
 
-from hud.controller import DeviceChannel
-from hud.model import DeviceHandle, HEART_RATE_MONITOR, SPEED_SENSOR, CADENCE_SENSOR, POWER_METER, Device
+from hud import devices
+from hud.devices import Service
+from hud.models import Model, Device
+
+
+class DeviceController(Protocol):
+
+    def start_scan(self):
+        ...
+
+    def set_device(self, device: Device):
+        ...
 
 
 class ClickableLabel(QLabel):
@@ -29,21 +39,15 @@ class ClickableLabel(QLabel):
 
 
 class DeviceDialog(QDialog):
+    selectedDevice = None
     selectDeviceSignal = pyqtSignal(object)
 
-    selectedDevice = None
-
-    def __init__(self, parent=None, channel: DeviceChannel = None):
+    def __init__(self, parent=None, ):
         super().__init__(parent)
-        self.channel = channel
 
         self.listWidget = QListWidget(self)
         self.listWidget.itemClicked.connect(self.selectItem)
-        self.listWidget.itemDoubleClicked.connect(self.selectDevice)
-
-        self.layout = QVBoxLayout(self)
-        self.layout.addWidget(self.listWidget)
-
+        self.listWidget.itemDoubleClicked.connect(self.confirmSelection)
         self.listWidget.setStyleSheet(
             """
                 QListWidget {
@@ -60,8 +64,11 @@ class DeviceDialog(QDialog):
         )
 
         self.closeLabel = ClickableLabel("assets/ok.png", "assets/ok_high.png", self)
-        self.layout.addWidget(self.closeLabel)
         self.closeLabel.clicked.connect(self.onLabelClicked)
+
+        self.layout = QVBoxLayout(self)
+        self.layout.addWidget(self.listWidget)
+        self.layout.addWidget(self.closeLabel)
 
         self.hLayout = QHBoxLayout()
         self.hLayout.addStretch()
@@ -90,7 +97,7 @@ class DeviceDialog(QDialog):
     def selectItem(self, item):
         self.selectedDevice = item.data(Qt.UserRole)
 
-    def selectDevice(self, item):
+    def confirmSelection(self, item):
         device = item.data(Qt.UserRole)
 
         self.selectDeviceSignal.emit(device)
@@ -104,14 +111,22 @@ class DeviceDialog(QDialog):
 
 
 class DevicePanel(QMainWindow):
-    channel: DeviceChannel
 
-    def __init__(self, normal_icon_path: str, highlighted_icon_path: str, device: Device, channel: DeviceChannel,
-                 parent=None):
+    def __init__(
+            self,
+            normal_icon_path: str,
+            highlighted_icon_path: str,
+            controller: DeviceController,
+            ble_service_type: Service,
+            model: Model,
+            parent=None
+    ):
         super().__init__(parent)
         self.dialog = None
 
-        self.device = device
+        self.model = model
+        self.ble_service_type = ble_service_type
+        self.controller = controller
 
         self.selectIcon = ClickableLabel(normal_icon_path, highlighted_icon_path, self)
         self.selectIcon.setToolTip("No device selected")
@@ -133,48 +148,47 @@ class DevicePanel(QMainWindow):
         self.layout.addWidget(self.selectIcon, 0, 0, 1, 1, Qt.AlignCenter)
         self.layout.addWidget(self.metricLabel, 1, 0, 1, 1, Qt.AlignCenter)
 
-        # self.layout = QVBoxLayout()
-        # self.layout.addWidget(self.selectIcon)
-        # self.layout.addWidget(self.metricLabel)
-
         self.centralWidget = QWidget(self)
         self.centralWidget.setLayout(self.layout)
         self.setCentralWidget(self.centralWidget)
 
         self.selectIcon.clicked.connect(self.showSelectDeviceDialog)
 
-        self.channel = channel
-        self.channel.measurement_received.subscribe(self.updateMetrics)
-
-    def closeEvent(self, event):
-        self.disconnect()
-        event.accept()
-
     def showSelectDeviceDialog(self):
-        self.dialog = DeviceDialog(self, channel=self.channel)
+        self.dialog = DeviceDialog(self)
         self.dialog.selectDeviceSignal.connect(self.deviceSelected)
 
-        self.channel.device_found.subscribe(self.dialog.showDevice)
-        self.channel.scan_devices.notify("start")
-
+        self.controller.start_scan()
+        self.dialog_refresher = QTimer()
+        self.dialog_refresher.timeout.connect(self.updateDeviceListOnDialog)
+        self.dialog_refresher.start(1000)
         self.dialog.exec_()
 
-    def deviceSelected(self, device: DeviceHandle):
-        self.channel.scan_devices.notify("stop")
-        self.channel.device_found.unsubscribe(self.dialog.showDevice)
+    def updateDeviceListOnDialog(self):
+        for device in self.model.devices:
+            if self.ble_service_type.service_uuid != device.service.service_uuid:
+                continue
+            self.dialog.showDevice(device)
+
+    def deviceSelected(self, device: Device):
+        if self.dialog_refresher:
+            self.dialog_refresher.stop()
         self.dialog = None
 
         if device is None:
             return
 
-        print(f"Device selected {device.name}")
-        self.channel.device_selected.notify(device)
+        self.controller.set_device(device)
 
-        print(f"Device label updated {device.name}")
-        self.selectIcon.setToolTip(device.name)
+    def updateDevice(self, value):
+        self.selectIcon.setToolTip(str(value))
 
     def updateMetrics(self, value):
         self.metricLabel.setText(str(value))
+
+    def closeEvent(self, event):
+        self.disconnect()
+        event.accept()
 
 
 class HUDView(QMainWindow):
@@ -182,13 +196,13 @@ class HUDView(QMainWindow):
 
     def __init__(
             self,
-            hrm_channel: DeviceChannel,
-            cad_channel: DeviceChannel,
-            spd_channel: DeviceChannel,
-            pwr_channel: DeviceChannel,
+            controller: DeviceController,
+            model: Model,
             parent=None,
     ):
         super().__init__(parent)
+
+        self.controller = controller
 
         self.layout = QGridLayout()
         self.centralWidget = QWidget(self)
@@ -196,37 +210,49 @@ class HUDView(QMainWindow):
         self.setCentralWidget(self.centralWidget)
 
         self.heart_rate_monitor = DevicePanel(
-            channel=hrm_channel,
-            device=HEART_RATE_MONITOR,
+            model=model,
+            ble_service_type=devices.HRM,
+            controller=controller,
             normal_icon_path="assets/hrm.png",
             highlighted_icon_path="assets/hrm_high.png",
         )
         self.layout.addWidget(self.heart_rate_monitor, 0, 0)
+        model.hrm_notifications.devices.subscribe(self.heart_rate_monitor.updateDevice)
+        model.hrm_notifications.metrics.subscribe(self.heart_rate_monitor.updateMetrics)
 
         self.cadence_sensor = DevicePanel(
-            channel=cad_channel,
-            device=CADENCE_SENSOR,
+            model=model,
+            ble_service_type=devices.CSC,
+            controller=controller,
             normal_icon_path="assets/cad.png",
             highlighted_icon_path="assets/cad_high.png",
 
         )
         self.layout.addWidget(self.cadence_sensor, 0, 1)
+        model.cad_notifications.devices.subscribe(self.cadence_sensor.updateDevice)
+        model.cad_notifications.metrics.subscribe(self.cadence_sensor.updateMetrics)
 
         self.power_meter = DevicePanel(
-            channel=pwr_channel,
-            device=POWER_METER,
+            model=model,
+            ble_service_type=devices.PWR,
+            controller=controller,
             normal_icon_path="assets/pwr.png",
             highlighted_icon_path="assets/pwr_high.png",
         )
         self.layout.addWidget(self.power_meter, 1, 0)
+        model.pwr_notifications.devices.subscribe(self.power_meter.updateDevice)
+        model.pwr_notifications.metrics.subscribe(self.power_meter.updateMetrics)
 
         self.speed_sensor = DevicePanel(
-            channel=spd_channel,
-            device=SPEED_SENSOR,
+            model=model,
+            ble_service_type=devices.CSC,
+            controller=controller,
             normal_icon_path="assets/spd.png",
             highlighted_icon_path="assets/spd_high.png",
         )
         self.layout.addWidget(self.speed_sensor, 1, 1)
+        model.spd_notifications.devices.subscribe(self.speed_sensor.updateDevice)
+        model.spd_notifications.metrics.subscribe(self.speed_sensor.updateMetrics)
 
         self.setWindowFlags(Qt.WindowStaysOnTopHint | Qt.FramelessWindowHint)
         self.setAttribute(Qt.WA_TranslucentBackground)
@@ -254,26 +280,14 @@ class HUDView(QMainWindow):
             self.move(event.globalPos() - self.m_DragPosition)
             event.accept()
 
+    def mouseReleaseEvent(self, event):
+        self.m_drag = False
+
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setOpacity(0.25)  # Set the opacity
         painter.setBrush(QBrush(QColor(0, 0, 0)))  # Set the color to black
         painter.drawRect(self.rect())
-
-    def mouseReleaseEvent(self, event):
-        self.m_drag = False
-
-    def update_heart_rate(self, value):
-        self.heart_rate_monitor.updateMetrics(value)
-
-    def update_cadence(self, value):
-        self.cadence_sensor.updateMetrics(value)
-
-    def update_power(self, value):
-        self.power_meter.updateMetrics(value)
-
-    def update_speed(self, value):
-        self.speed_sensor.updateMetrics(value)
 
     def closeEvent(self, event):
         self.shutdown_signal.emit()
@@ -283,10 +297,3 @@ class HUDView(QMainWindow):
         self.tray_icon.hide()
         self.shutdown_signal.emit()
         QApplication.quit()
-
-
-if __name__ == "__main__":
-    app = QApplication(sys.argv)
-    window = HUDView()
-    window.show()
-    sys.exit(app.exec_())

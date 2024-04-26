@@ -4,8 +4,8 @@ import sys
 from PyQt5.QtCore import QThreadPool
 from qasync import QApplication, QEventLoop
 
-from hud.controller import Controller, DeviceChannel
-from hud.model import HUDModel
+from hud.controller import DeviceController
+from hud.services import Model, BleDiscoveryService, CyclingCadenceAndSpeedService
 from hud.view import HUDView
 
 if __name__ == "__main__":
@@ -14,30 +14,19 @@ if __name__ == "__main__":
     loop = QEventLoop(app)
     asyncio.set_event_loop(loop)
 
-    hrm_channel = DeviceChannel()
-    cad_channel = DeviceChannel()
-    spd_channel = DeviceChannel()
-    pwr_channel = DeviceChannel()
-
-    view = HUDView(
-        hrm_channel=hrm_channel,
-        cad_channel=cad_channel,
-        spd_channel=spd_channel,
-        pwr_channel=pwr_channel,
-    )
-
     QThreadPool.globalInstance().setMaxThreadCount(10)
     QThreadPool.globalInstance().setStackSize(2048)
-    model = HUDModel(QThreadPool.globalInstance())
+    pool = QThreadPool.globalInstance()
 
-    controller = Controller(
-        hrm_channel=hrm_channel,
-        cad_channel=cad_channel,
-        spd_channel=spd_channel,
-        pwr_channel=pwr_channel,
-        model=model,
+    model = Model()
+
+    controller = DeviceController(
+        scan_service=BleDiscoveryService(pool, model),
+        hrm_service=CyclingCadenceAndSpeedService(pool, model),
+        csc_service=CyclingCadenceAndSpeedService(pool, model),
     )
 
+    view = HUDView(controller, model)
     view.show()
 
     with loop:

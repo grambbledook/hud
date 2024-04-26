@@ -8,62 +8,57 @@ from bleak import BleakScanner, BleakClient, BleakGATTCharacteristic
 
 from hud.listeners import Listeners
 
-Device = namedtuple(
+BleService = namedtuple(
     'DeviceService',
     ['service_uuid', 'characteristic_uuid', 'type', 'transformer']
 )
-
-HEART_RATE_MONITOR = Device(
-    "0000180d-0000-1000-8000-00805f9b34fb",
-    "00002a37-0000-1000-8000-00805f9b34fb",
-    "Heart Rate Monitor",
     lambda _, data: data[1],
 )
 
-CADENCE_SENSOR = Device(
+
+CADENCE_SENSOR = BleService(
     "00001816-0000-1000-8000-00805f9b34fb",
     "00002a5b-0000-1000-8000-00805f9b34fb",
     "Cadence Sensor",
-    lambda _, data: data[1],
+    lambda _, data: data[1]
 )
 
-SPEED_SENSOR = Device(
+SPEED_SENSOR = BleService(
     "00001816-0000-1000-8000-00805f9b34fb",
     "00002a5b-0000-1000-8000-00805f9b34fb",
     "Speed Sensor",
     lambda _, data: data[1],
 )
 
-POWER_METER = Device(
+POWER_METER = BleService(
     "00001818-0000-1000-8000-00805f9b34fb",
     "00002a63-0000-1000-8000-00805f9b34fb",
     "Power Meter",
-    lambda _, data: data[1],
+    lambda _, data: data[1]
 )
 
 T = TypeVar('T')
 
 
 class DeviceHandle(Generic[T]):
-    def __init__(self, name: str, client: BleakClient, device: Device):
+    def __init__(self, name: str, client: BleakClient, device: BleService):
         self.name: str = name
-        self.device: Device = device
+        self.device: BleService = device
         self.client: BleakClient = client
 
     async def start(self) -> AsyncGenerator[T, None]:
         queue = asyncio.Queue()
 
         async def on_data(characteristic: BleakGATTCharacteristic, data: bytearray):
-            transformed = self.device.transformer(characteristic, data)
-            await queue.put(transformed)
+            await queue.put((characteristic, data))
 
         await self.client.connect()
         await self.client.start_notify(self.device.characteristic_uuid, callback=on_data)
 
         while True:
-            value = await queue.get()
+            characteristic, data = await queue.get()
             queue.task_done()
-            yield value
+            yield characteristic, data
 
     async def subscribe(self, callback: Callable[[T], None]):
 
@@ -87,8 +82,8 @@ class DeviceHandle(Generic[T]):
 
 
 class DeviceScanner(object):
-    def __init__(self, device: Device):
-        self.device: Device = device
+    def __init__(self, device: BleService):
+        self.device: BleService = device
 
     async def scan(self) -> AsyncGenerator[DeviceHandle, None]:
         scanner = BleakScanner()
@@ -96,6 +91,8 @@ class DeviceScanner(object):
 
         for address, (device, advertisement_data) in address_to_device_and_advertisement_data.items():
             if self.device.service_uuid in advertisement_data.service_uuids:
+                client = BleakClient(device)
+
                 yield DeviceHandle(
                     name=device.name or address,
                     client=BleakClient(device),
@@ -103,17 +100,9 @@ class DeviceScanner(object):
                 )
 
 
-class State(object):
-    def __init__(self):
-        self.heart_rate: Optional[int] = None
-        self.power: Optional[int] = None
-        self.cadence: Optional[int] = None
-        self.speed: Optional[float] = None
-
-
 class ScanTask(QRunnable):
 
-    def __init__(self, device: Device, listeners: Listeners, *args, **kwargs):
+    def __init__(self, device: BleService, listeners: Listeners, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.device = device
         self.listeners = listeners
@@ -163,6 +152,55 @@ class StopMeasurementReadingTask(QRunnable):
         asyncio.run(self.device.unsubscribe())
 
 
+class Model(object):
+    heart_rate_monitor: Optional[Device]
+    cadence_sensor: Optional[Device]
+    speed_sensor: Optional[Device]
+    power_meter: Optional[Device]
+
+    hrm = None
+    cadence = None
+
+    @classmethod
+    def from_yaml(cls, loader, node):
+        value = loader.construct_mapping(node)
+        return cls(**value)
+
+    def to_yaml(self):
+        return {
+            'heart_rate_monitor': self.heart_rate_monitor,
+            'cadence_sensor': self.cadence_sensor,
+            'speed_sensor': self.speed_sensor,
+            'power_meter': self.power_meter,
+        }
+
+    def __init__(self, heart_rate_monitor=None, cadence_sensor=None, speed_sensor=None, power_meter=None):
+        self.heart_rate_monitor = heart_rate_monitor
+        self.cadence_sensor = cadence_sensor
+        self.speed_sensor = speed_sensor
+        self.power_meter = power_meter
+
+    def hrm(self, hrm):
+        self.hrm = hrm
+        return self.hrm
+
+    def cadence(self, cadence):
+        if not self.cadence:
+            self.cadence = cadence
+
+        (cur_ccr, cur_lcet), (prev_ccr, prev_lcet), self.cadence = cadence, self.cadence, cadence
+
+        return (cur_ccr - prev_ccr) / (cur_lcet - prev_lcet)
+
+    def speed(self, speed):
+        if not self.speed:
+            self.speed = speed
+
+        (cur_cwr, cur_lwet), (prev_cwr, prev_lwet), self.speed = speed, self.speed, speed
+
+        return (cur_cwr - prev_cwr) / (cur_lwet - prev_lwet)
+
+
 class HUDModel(object):
     scan: Optional[ScanTask]
 
@@ -178,8 +216,9 @@ class HUDModel(object):
         self.speed_sensor: Optional[DeviceHandle[float]] = None
 
         self.pool = pool
+        self.model = Model()
 
-    def start_scan(self, device: Device, device_found: Listeners):
+    def start_scan(self, device: BleService, device_found: Listeners):
         self.scan = ScanTask(device, device_found)
         self.pool.start(self.scan)
 
@@ -239,16 +278,3 @@ class HUDModel(object):
     def pwr_subscribe(self, power_received: Listeners):
         self.power_meter_task = MeasurementReadingTask(self.power_meter, power_received)
         self.pool.start(self.power_meter_task)
-
-
-async def run():
-    scanner = DeviceScanner(HEART_RATE_MONITOR)
-    async for device in scanner.scan():
-        i = 0
-        await device.subscribe(print)
-        await asyncio.sleep(30)
-        await device.unsubscribe()
-
-
-if __name__ == "__main__":
-    asyncio.run(run())
