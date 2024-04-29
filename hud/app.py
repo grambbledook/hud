@@ -6,7 +6,7 @@ from qasync import QApplication, QEventLoop
 
 from hud.controller import DeviceController
 from hud.services import Model, BleDiscoveryService, CyclingCadenceAndSpeedService, HrmService, PowerService
-from hud.view import HUDView
+from hud.view import HUDView, DARK, BRIGHT
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
@@ -27,7 +27,7 @@ if __name__ == "__main__":
         power_service=PowerService(pool, model),
     )
 
-    view = HUDView(controller, model)
+    view = HUDView(controller, model, style=BRIGHT)
     view.show()
 
     with loop:
