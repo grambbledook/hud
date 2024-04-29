@@ -1,7 +1,7 @@
 from typing import Protocol
 
-from hud import devices
-from hud.models import Device, Model
+from hud import model
+from hud.model import Device, Model
 from hud.services import BleDiscoveryService, CyclingCadenceAndSpeedService, HrmService, PowerService
 
 
@@ -31,11 +31,11 @@ class DeviceController:
         print(f"Device found: {device}")
 
         match device.service:
-            case devices.HRM:
+            case model.HRM:
                 self.hrm_service.set_device(device)
-            case devices.CSC:
+            case model.CSC:
                 self.csc_service.set_device(device)
-            case devices.PWR:
+            case model.PWR:
                 self.power_service.set_device(device)
             case _:
                 print(f"Unknown: {device}")

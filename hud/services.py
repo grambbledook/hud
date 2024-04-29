@@ -5,9 +5,8 @@ from typing import Callable, TypeVar, AsyncGenerator, Tuple, Coroutine
 from PyQt5.QtCore import QRunnable, QThreadPool
 from bleak import BleakScanner, BleakClient, BleakGATTCharacteristic
 
-from hud.devices import SUPPORTED_SERVICES, Service
-from hud.events import MeasurementEvent, SpeedMeasurement, CadenceMeasurement, HrmMeasurement
-from hud.models import Model, Device
+from hud.model import Model, Device, MeasurementEvent, SpeedMeasurement, CadenceMeasurement, HrmMeasurement, \
+    SUPPORTED_SERVICES, Service
 
 T = TypeVar('T')
 
@@ -103,7 +102,7 @@ class MeasurementReadingTask(QRunnable):
                 print(f"Connected to [{self.device.name}:{self.device.address}]")
 
             except Exception as e:
-                print(f"Unable to connect to device [{self.device.name}:{self.device.address}]")
+                print(f"Unable to connect to device [{self.device.name}:{self.device.address}]: {e}")
                 await asyncio.sleep(1)
             attempt += 1
 
@@ -193,9 +192,13 @@ class ConnectionService(abc.ABC):
             return
 
         print(f"Reconnecting to device [{task.device.name}:{task.device.address}]")
+
+        async def dummy(*_):
+            pass
+
         task = MeasurementReadingTask(
             task.device,
-            feature_extractor=lambda *args: asyncio.coroutine(lambda: None)(),
+            feature_extractor=dummy,
             event_processor=self.process_measurement,
             disconnect_handler=self.handle_disconnect,
         )
@@ -322,95 +325,3 @@ class PowerService(ConnectionService):
         power = int.from_bytes(data[1:], byteorder='little', signed=False)
         event = MeasurementEvent(device=device, measurement=HrmMeasurement(power))
         self.model.update_power(event)
-
-#
-# class SpeedService(BleDeviceService):
-#     @dataclass
-#     class State:
-#         cum_wheel_revs: int
-#         last_wheel_event_time: int
-#
-#     def __init__(self, pool: QThreadPool, listeners: Listeners):
-#         self.pool = pool
-#         self.listeners = listeners
-#         self.state = SpeedService.State(0, 0)
-#         self.active_device_connection = None
-#
-#     def start_scan(self, device_found: Channel):
-#         task = ScanTask(SPEED_SENSOR, device_found)
-#         self.pool.start(task)
-#
-#     def set_device(self, device: DeviceHandle):
-#         if self.active_device_connection:
-#             self.active_device_connection.close()
-#
-#         self.active_device_connection = MeasurementReadingTask(device, self._process_measurement)
-#         self.pool.start(self.active_device_connection)
-#
-#     def _process_measurement(self, _, data):
-#         flag = data[0]
-#
-#         if flag not in {1, 3}:
-#             return
-#         value = int.from_bytes(data[1:], byteorder='little', signed=False)
-#
-#         new_cwr = int.from_bytes(data[1:5], byteorder='little', signed=False)
-#         new_lwet = int.from_bytes(data[5:7], byteorder='little', signed=False)
-#         old_cwr = self.state.cum_wheel_revs
-#         old_lwet = self.state.last_wheel_event_time
-#         self.state.cum_wheel_revs, self.state.last_wheel_event_time = new_cwr, new_lwet
-#
-#         speed = (new_cwr - old_cwr) / (new_lwet - old_lwet)
-#
-#         self.listeners.notify(speed)
-#
-#
-# class CadenceService(BleDeviceService):
-#     @dataclass
-#     class State:
-#         prev_ccr: int
-#         prev_lcet: int
-#         last_ccr: int
-#         last_lcet: int
-#         cadence: int
-#
-#     def __init__(self, pool: QThreadPool, listeners: Listeners):
-#         self.pool = pool
-#         self.listeners = listeners
-#         self.state = CadenceService.State(0, 0, 0, 0, 0)
-#         self.active_device_connection = None
-#
-#     def start_scan(self, device_found: Channel):
-#         task = ScanTask(SPEED_SENSOR, device_found)
-#         self.pool.start(task)
-#
-#     def set_device(self, device: DeviceHandle):
-#         if self.active_device_connection:
-#             self.active_device_connection.close()
-#
-#         self.active_device_connection = MeasurementReadingTask(device, self._process_measurement)
-#         self.pool.start(self.active_device_connection)
-#
-#     def _process_measurement(self, _, data):
-#         flag = data[0]
-#
-#         match flag:
-#             case 2:
-#                 cur_ccr = int.from_bytes(data[1:3], byteorder='little', signed=False)
-#                 cur_lcet = int.from_bytes(data[3:5], byteorder='little', signed=False)
-#             case 3:
-#                 cur_ccr = int.from_bytes(data[7:9], byteorder='little', signed=False)
-#                 cur_lcet = int.from_bytes(data[9:11], byteorder='little', signed=False)
-#             case _:
-#                 return
-#
-#         if cur_lcet <= self.state.last_lcet:
-#             return
-#
-#         self.state.prev_ccr, self.state.prev_lcet = self.state.last_ccr, self.state.last_lcet
-#         self.state.last_ccr, self.state.last_lcet = cur_ccr, cur_lcet
-#
-#         cadence = (self.state.last_ccr - self.state.prev_ccr) / (
-#                 self.state.last_lcet - self.state.prev_lcet) * 60 * 1000
-#         self.state.cadence = cadence
-#         self.listeners.notify(cadence)

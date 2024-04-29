@@ -6,9 +6,7 @@ from PyQt5.QtGui import QIcon, QPixmap, QColor, QPainter, QBrush
 from PyQt5.QtWidgets import QApplication, QMainWindow, QLabel, QVBoxLayout, QWidget, QDialog, QListWidget, \
     QListWidgetItem, QGridLayout, QSystemTrayIcon, QMenu, QAction, QHBoxLayout
 
-from hud import devices
-from hud.devices import Service
-from hud.models import Model, Device
+from hud.model import Model, Device, Service, HRM, CSC, PWR
 
 
 @dataclasses.dataclass
@@ -295,7 +293,7 @@ class HUDView(QMainWindow):
 
         self.heart_rate_monitor = DevicePanel(
             model=model,
-            ble_service_type=devices.HRM,
+            ble_service_type=HRM,
             controller=controller,
             normal_icon_path="assets/hrm.png",
             highlighted_icon_path="assets/hrm_high.png",
@@ -306,7 +304,7 @@ class HUDView(QMainWindow):
 
         self.cadence_sensor = DevicePanel(
             model=model,
-            ble_service_type=devices.CSC,
+            ble_service_type=CSC,
             controller=controller,
             normal_icon_path="assets/cad.png",
             highlighted_icon_path="assets/cad_high.png",
@@ -317,7 +315,7 @@ class HUDView(QMainWindow):
 
         self.power_meter = DevicePanel(
             model=model,
-            ble_service_type=devices.PWR,
+            ble_service_type=PWR,
             controller=controller,
             normal_icon_path="assets/pwr.png",
             highlighted_icon_path="assets/pwr_high.png",
@@ -328,7 +326,7 @@ class HUDView(QMainWindow):
 
         self.speed_sensor = DevicePanel(
             model=model,
-            ble_service_type=devices.CSC,
+            ble_service_type=CSC,
             controller=controller,
             normal_icon_path="assets/spd.png",
             highlighted_icon_path="assets/spd_high.png",
