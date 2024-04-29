@@ -5,8 +5,9 @@ from PyQt5.QtCore import QThreadPool
 from qasync import QApplication, QEventLoop
 
 from hud.controller import DeviceController
-from hud.services import Model, BleDiscoveryService, CyclingCadenceAndSpeedService, HrmService, PowerService
-from hud.view import HUDView, DARK, BRIGHT
+from hud.services import Model, BleDiscoveryService, CyclingCadenceAndSpeedService, HrmService, PowerService, \
+    DeviceRegistry
+from hud.view import HUDView, BRIGHT
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
@@ -20,11 +21,13 @@ if __name__ == "__main__":
 
     model = Model()
 
+    registry = DeviceRegistry()
+
     controller = DeviceController(
         scan_service=BleDiscoveryService(pool, model),
-        hrm_service=HrmService(pool, model),
-        csc_service=CyclingCadenceAndSpeedService(pool, model),
-        power_service=PowerService(pool, model),
+        hrm_service=HrmService(pool, model, registry),
+        csc_service=CyclingCadenceAndSpeedService(pool, model, registry),
+        power_service=PowerService(pool, model, registry),
     )
 
     view = HUDView(controller, model, style=BRIGHT)

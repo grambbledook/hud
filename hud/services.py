@@ -1,14 +1,48 @@
 import abc
 import asyncio
-from typing import Callable, TypeVar, AsyncGenerator, Tuple, Coroutine
+from collections import defaultdict
+from typing import Callable, TypeVar, AsyncGenerator, Tuple, Coroutine, Dict
 
 from PyQt5.QtCore import QRunnable, QThreadPool
 from bleak import BleakScanner, BleakClient, BleakGATTCharacteristic
 
 from hud.model import Model, Device, MeasurementEvent, SpeedMeasurement, CadenceMeasurement, HrmMeasurement, \
-    SUPPORTED_SERVICES, Service
+    SUPPORTED_SERVICES, Service, PowerMeasurement
 
 T = TypeVar('T')
+
+
+class DeviceRegistry:
+    def __init__(self):
+        self.clients: Dict[str, BleakClient] = {}
+        self.callbacks: Dict[str, list[Callable[[BleakClient], None]]] = defaultdict(list)
+
+    async def connect(self, device: Device, disconnection_callback) -> BleakClient:
+
+        if device.address not in self.clients:
+            self.clients[device.address] = BleakClient(device.address, disconnected_callback=self._on_disconnect)
+
+        if disconnection_callback not in self.callbacks[device.address]:
+            self.callbacks[device.address].append(disconnection_callback)
+
+        client = self.clients[device.address]
+
+        if not client.is_connected:
+            await client.connect()
+
+        return client
+
+    def _on_disconnect(self, client: BleakClient):
+        address = client.address
+        for callback in self.callbacks[address]:
+            callback(client)
+
+    async def stop(self):
+        for address, client in self.clients.items():
+            print(f"Disconnecting from device [{address}]")
+
+            if client.is_connected:
+                await client.disconnect()
 
 
 # # # # # # # # # # # # # # # # # # # # # # #
@@ -66,6 +100,7 @@ class MeasurementReadingTask(QRunnable):
     def __init__(
             self,
             device: Device,
+            registry: DeviceRegistry,
             feature_extractor: Callable[[BleakClient, Device], Coroutine[None, None, None]],
             event_processor: Callable[[Device, bytearray], None],
             disconnect_handler: Callable[[BleakClient], None] = None,
@@ -74,11 +109,14 @@ class MeasurementReadingTask(QRunnable):
     ):
         super().__init__(*args, **kwargs)
         self.device = device
+        self.registry = registry
         self.feature_extractor = feature_extractor
         self.callback = event_processor
         self.disconnect_handler = disconnect_handler
         self.client = None
+
         self._is_active = True
+        self._is_closed = False
 
     def run(self):
         asyncio.run(self.try_execute())
@@ -92,19 +130,21 @@ class MeasurementReadingTask(QRunnable):
             print(f"An error occurred during task [{type(self)}] execution: {e}")
 
     async def connect(self):
-        attempt = 1
-        self.client = BleakClient(self.device.address, disconnected_callback=self.disconnect_handler)
+        client, attempt = None, 0
 
-        while self.is_active() and not self.client.is_connected:
+        while self.is_active() and not client:
+            attempt += 1
+
             print(f"Attempting to connect to [{self.device.name}:{self.device.address}]. Attempt={attempt}")
             try:
-                await self.client.connect()
+                client = await self.registry.connect(self.device, self.disconnect_handler)
                 print(f"Connected to [{self.device.name}:{self.device.address}]")
 
             except Exception as e:
                 print(f"Unable to connect to device [{self.device.name}:{self.device.address}]: {e}")
                 await asyncio.sleep(1)
-            attempt += 1
+
+        self.client = client
 
     async def extract_features(self):
         if not self.is_active():
@@ -146,18 +186,25 @@ class MeasurementReadingTask(QRunnable):
     def unsubscribe(self):
         self._is_active = False
 
+    def disconnect(self):
+        self.unsubscribe()
+        self._is_closed = True
+
     def is_active(self):
         return self._is_active
 
     async def stop(self):
         await self.client.stop_notify(self.device.service.characteristic_uuid)
-        await self.client.disconnect()
+
+        if self._is_closed:
+            await self.client.disconnect()
 
 
 class ConnectionService(abc.ABC):
-    def __init__(self, pool: QThreadPool, model: Model):
+    def __init__(self, pool: QThreadPool, model: Model, registry: DeviceRegistry):
         self.pool = pool
         self.model = model
+        self.registry = registry
         self.tasks = []
 
     def set_device(self, device: Device):
@@ -166,6 +213,7 @@ class ConnectionService(abc.ABC):
             feature_extractor=self.process_supported_features,
             event_processor=self.process_measurement,
             disconnect_handler=self.handle_disconnect,
+            registry=self.registry,
         )
         self.tasks.append(task)
         self.pool.start(task)
@@ -201,18 +249,19 @@ class ConnectionService(abc.ABC):
             feature_extractor=dummy,
             event_processor=self.process_measurement,
             disconnect_handler=self.handle_disconnect,
+            registry=self.registry,
         )
         self.tasks.append(task)
         self.pool.start(task)
 
     def stop(self):
         for task in self.tasks:
-            task.unsubscribe()
+            task.stop()
 
 
 class HrmService(ConnectionService):
-    def __init__(self, pool: QThreadPool, model: Model):
-        super().__init__(pool, model)
+    def __init__(self, pool: QThreadPool, model: Model, registry: DeviceRegistry):
+        super().__init__(pool, model, registry)
 
     async def process_supported_features(self, _, device: Device):
         self.model.set_hrm(device)
@@ -232,8 +281,8 @@ class HrmService(ConnectionService):
 class CyclingCadenceAndSpeedService(ConnectionService):
     CSC_FEATURE_UUID = "00002a5c-0000-1000-8000-00805f9b34fb"
 
-    def __init__(self, pool: QThreadPool, model: Model):
-        super().__init__(pool, model)
+    def __init__(self, pool: QThreadPool, model: Model, registry: DeviceRegistry):
+        super().__init__(pool, model, registry)
 
     async def process_supported_features(self, client: BleakClient, device: Device):
         supported_services = await self.parse_csc_feature(client)
@@ -315,13 +364,13 @@ class CyclingCadenceAndSpeedService(ConnectionService):
 
 
 class PowerService(ConnectionService):
-    def __init__(self, pool: QThreadPool, model: Model):
-        super().__init__(pool, model)
+    def __init__(self, pool: QThreadPool, model: Model, registry: DeviceRegistry):
+        super().__init__(pool, model, registry)
 
     async def process_supported_features(self, _, device: Device):
         self.model.set_power(device)
 
     def process_measurement(self, device: Device, data: bytearray):
-        power = int.from_bytes(data[1:], byteorder='little', signed=False)
-        event = MeasurementEvent(device=device, measurement=HrmMeasurement(power))
+        power = int.from_bytes(data[:2], byteorder='little', signed=False)
+        event = MeasurementEvent(device=device, measurement=PowerMeasurement(power))
         self.model.update_power(event)

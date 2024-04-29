@@ -2,7 +2,7 @@ from typing import Protocol
 
 from hud import model
 from hud.model import Device, Model
-from hud.services import BleDiscoveryService, CyclingCadenceAndSpeedService, HrmService, PowerService
+from hud.services import BleDiscoveryService, CyclingCadenceAndSpeedService, HrmService, PowerService, DeviceRegistry
 
 
 class View(Protocol):
@@ -41,12 +41,15 @@ class DeviceController:
                 print(f"Unknown: {device}")
 
     def stop(self):
-        print("Stopping HRM Service...")
+        print("Closing connections to Devices...")
+
+        print("Unsubscribing from HRM Service...")
         self.hrm_service.stop()
 
-        print("Stopping CSC Service...")
+        print("Unsubscribing from CSC Service...")
         self.csc_service.stop()
 
-        print("Stopping Power Service...")
+        print("Unsubscribing from Power Service...")
         self.power_service.stop()
+
         print("All services stopped.")
