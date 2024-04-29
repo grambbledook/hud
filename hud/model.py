@@ -127,8 +127,27 @@ class Connection(Generic[T]):
     state: T
 
 
+# Conversion factor from millimeters to kilometers
+MM_TO_KM = 1 / 1_000_000
+
+# Conversion factor from milliseconds to hours
+MS_TO_HR = 1 / (60 * 60 * 1000)
+
+# Default circumference of the tire in millimeters
+DEFAULT_TIRE_CIRCUMFERENCE_MM = 2168
+
+# Circumference of the tire in millimeters
+TIRE_CIRCUMFERENCE_MM = {
+    "700-35C": 2168,
+    "700-38C": 2180,
+    "700-40C": 2200,
+}
+
+
 @dataclass
 class Model:
+    tire_type: str = "700-35C"
+
     hrm: Connection[HrmState] = Connection(None, HrmState(0))
     speed: Connection[SpeedState] = Connection(None, SpeedState(0, 0, 0, 0, 0))
     cadence: Connection[CadenceState] = Connection(None, CadenceState(0, 0, 0, 0, 0))
@@ -192,14 +211,20 @@ class Model:
         if new_lwet <= last_lwet:
             return
 
-        speed = (new_cwr - last_cwr) / (new_lwet - last_lwet) * 60 * 1000
+        total_revolutions = new_cwr - last_cwr
+        time_delta = new_lwet - last_lwet
+        tire_circumference = TIRE_CIRCUMFERENCE_MM.get(self.tire_type, DEFAULT_TIRE_CIRCUMFERENCE_MM)
+
+        total_kmh = total_revolutions * tire_circumference * MM_TO_KM
+        time_hours = time_delta * MS_TO_HR
+        speed = total_kmh / time_hours
 
         self.speed.state = SpeedState(
             first_cwr=last_cwr, first_lwet=last_lwet,
             last_cwr=new_cwr, last_lwet=new_lwet,
             latest=speed
         )
-        self.spd_notifications.metrics.notify(round(speed))
+        self.spd_notifications.metrics.notify(round(speed, 1))
 
     def update_hrm(self, event: MeasurementEvent[HrmMeasurement]):
         if event.device != self.hrm.device:
