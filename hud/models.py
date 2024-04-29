@@ -77,19 +77,23 @@ class Model:
         print("Setting cadence: ", device)
         self.cadence = Connection(device, CadenceState(0, 0, 0, 0, 0))
         self.cad_notifications.devices.notify(device.name)
+        self.cad_notifications.metrics.notify(0)
 
     def set_speed(self, device: Device):
         print("Setting speed: ", device)
         self.speed = Connection(device, SpeedState(0, 0, 0, 0, 0))
         self.spd_notifications.devices.notify(device.name)
+        self.spd_notifications.metrics.notify(0)
 
     def set_power(self, device: Device):
         self.power = Connection(device, PowerState(0))
         self.pwr_notifications.devices.notify(device.name)
+        self.pwr_notifications.metrics.notify(0)
 
     def set_hrm(self, device: Device):
         self.hrm = Connection(device, HrmState(0))
         self.hrm_notifications.devices.notify(device.name)
+        self.hrm_notifications.metrics.notify(0)
 
     def update_cadence(self, event: MeasurementEvent[CadenceMeasurement]):
         if event.device != self.cadence.device:

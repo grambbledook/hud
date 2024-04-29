@@ -1,6 +1,6 @@
 import abc
 import asyncio
-from typing import Callable, TypeVar, AsyncGenerator, Tuple
+from typing import Callable, TypeVar, AsyncGenerator, Tuple, Coroutine
 
 from PyQt5.QtCore import QRunnable, QThreadPool
 from bleak import BleakScanner, BleakClient, BleakGATTCharacteristic
@@ -67,8 +67,9 @@ class MeasurementReadingTask(QRunnable):
     def __init__(
             self,
             device: Device,
-            feature_extractor: Callable[[BleakClient, Device], object],
+            feature_extractor: Callable[[BleakClient, Device], Coroutine[None, None, None]],
             event_processor: Callable[[Device, bytearray], None],
+            disconnect_handler: Callable[[BleakClient], None] = None,
             *args,
             **kwargs
     ):
@@ -76,6 +77,7 @@ class MeasurementReadingTask(QRunnable):
         self.device = device
         self.feature_extractor = feature_extractor
         self.callback = event_processor
+        self.disconnect_handler = disconnect_handler
         self.client = None
         self._is_active = True
 
@@ -84,19 +86,47 @@ class MeasurementReadingTask(QRunnable):
 
     async def try_execute(self):
         try:
-            await self.execute()
+            await self.connect()
+            await self.extract_features()
+            await self.subscribe_to_events()
         except Exception as e:
             print(f"An error occurred during task [{type(self)}] execution: {e}")
 
-    async def execute(self):
-        self.client = BleakClient(self.device.address)
+    async def connect(self):
+        attempt = 1
+        self.client = BleakClient(self.device.address, disconnected_callback=self.disconnect_handler)
+
+        while self.is_active() and not self.client.is_connected:
+            print(f"Attempting to connect to [{self.device.name}:{self.device.address}]. Attempt={attempt}")
+            try:
+                await self.client.connect()
+                print(f"Connected to [{self.device.name}:{self.device.address}]")
+
+            except Exception as e:
+                print(f"Unable to connect to device [{self.device.name}:{self.device.address}]")
+                await asyncio.sleep(1)
+            attempt += 1
+
+    async def extract_features(self):
+        if not self.is_active():
+            return
+
         await self.feature_extractor(self.client, self.device)
 
-        async for value in self.start():
-            if not self._is_active:
-                break
-            self.callback(*value)
+    async def subscribe_to_events(self):
+        if not self.is_active():
+            return
 
+        async for value in self.start():
+            if not self.is_active():
+                stop_message = (
+                    "Signal stop received for task "
+                    f"[{self.device.name}:{self.device.address}:{self.device.service.characteristic_uuid}]"
+                )
+                print(stop_message)
+                break
+
+            self.callback(*value)
         await self.stop()
 
     async def start(self) -> AsyncGenerator[Tuple[BleakGATTCharacteristic, bytearray], None]:
@@ -105,9 +135,6 @@ class MeasurementReadingTask(QRunnable):
         async def on_data(characteristic: BleakGATTCharacteristic, data: bytearray):
             await queue.put((characteristic, data))
 
-        if not self.client.is_connected:
-            print(f"Connecting to {self.device.name}, address: {self.device.address}")
-            await self.client.connect()
         print(f"Subscribing for {self.device.service.characteristic_uuid}, device: {self.device.name}")
         await self.client.start_notify(self.device.service.characteristic_uuid, callback=on_data)
         print(f"Subscribed for {self.device.service.characteristic_uuid}, device: {self.device.name}")
@@ -119,6 +146,9 @@ class MeasurementReadingTask(QRunnable):
 
     def unsubscribe(self):
         self._is_active = False
+
+    def is_active(self):
+        return self._is_active
 
     async def stop(self):
         await self.client.stop_notify(self.device.service.characteristic_uuid)
@@ -136,6 +166,7 @@ class ConnectionService(abc.ABC):
             device,
             feature_extractor=self.process_supported_features,
             event_processor=self.process_measurement,
+            disconnect_handler=self.handle_disconnect,
         )
         self.tasks.append(task)
         self.pool.start(task)
@@ -147,6 +178,29 @@ class ConnectionService(abc.ABC):
     @abc.abstractmethod
     def process_measurement(self, device: Device, data: bytearray):
         ...
+
+    def handle_disconnect(self, client: BleakClient):
+        for task in reversed(self.tasks):
+            print(f"Device [{task.device.name}:{task.device.address}] disconnected.")
+            if task.client == client:
+                self.tasks.remove(task)
+            break
+        else:
+            print(f"Received a device disconnected callback for device [{client.address}], but no task was found.")
+            return
+
+        if not task.is_active():
+            return
+
+        print(f"Reconnecting to device [{task.device.name}:{task.device.address}]")
+        task = MeasurementReadingTask(
+            task.device,
+            feature_extractor=lambda *args: asyncio.coroutine(lambda: None)(),
+            event_processor=self.process_measurement,
+            disconnect_handler=self.handle_disconnect,
+        )
+        self.tasks.append(task)
+        self.pool.start(task)
 
     def stop(self):
         for task in self.tasks:
@@ -256,6 +310,7 @@ class CyclingCadenceAndSpeedService(ConnectionService):
                 cadence_event = MeasurementEvent(device=device, measurement=CadenceMeasurement(ccr, lcet))
                 self.model.update_cadence(cadence_event)
 
+
 class PowerService(ConnectionService):
     def __init__(self, pool: QThreadPool, model: Model):
         super().__init__(pool, model)
@@ -267,7 +322,6 @@ class PowerService(ConnectionService):
         power = int.from_bytes(data[1:], byteorder='little', signed=False)
         event = MeasurementEvent(device=device, measurement=HrmMeasurement(power))
         self.model.update_power(event)
-
 
 #
 # class SpeedService(BleDeviceService):
