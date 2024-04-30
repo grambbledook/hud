@@ -3,7 +3,7 @@ import asyncio
 from collections import defaultdict
 from typing import Callable, TypeVar, AsyncGenerator, Tuple, Coroutine, Dict
 
-from PyQt5.QtCore import QRunnable, QThreadPool
+from PySide6.QtCore import QRunnable, QThreadPool
 from bleak import BleakScanner, BleakClient, BleakGATTCharacteristic
 
 from hud.model import Model, Device, MeasurementEvent, SpeedMeasurement, CadenceMeasurement, HrmMeasurement, \

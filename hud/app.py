@@ -1,7 +1,7 @@
 import asyncio
 import sys
 
-from PyQt5.QtCore import QThreadPool
+from PySide6.QtCore import QThreadPool
 from qasync import QApplication, QEventLoop
 
 from hud.controller import DeviceController
@@ -34,4 +34,4 @@ if __name__ == "__main__":
     view.show()
 
     with loop:
-        sys.exit(app.exec_())
+        sys.exit(app.exec())
