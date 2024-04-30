@@ -166,7 +166,7 @@ class MeasurementReadingTask(QRunnable):
                 break
 
             self.callback(*value)
-        await self.stop()
+        await self.clean_up()
 
     async def start(self) -> AsyncGenerator[Tuple[BleakGATTCharacteristic, bytearray], None]:
         queue = asyncio.Queue()
@@ -186,14 +186,14 @@ class MeasurementReadingTask(QRunnable):
     def unsubscribe(self):
         self._is_active = False
 
-    def disconnect(self):
+    def stop(self):
         self.unsubscribe()
         self._is_closed = True
 
     def is_active(self):
         return self._is_active
 
-    async def stop(self):
+    async def clean_up(self):
         await self.client.stop_notify(self.device.service.characteristic_uuid)
 
         if self._is_closed:
@@ -267,12 +267,13 @@ class HrmService(ConnectionService):
         self.model.set_hrm(device)
 
     def process_measurement(self, device: Device, data: bytearray):
-        flag = data[0] & 0x01
+        # GATT Specification Supplement v5: 3.106.2
+        flag = data[0]
 
-        if flag == 0:
-            hrm = int.from_bytes(data[1:2], byteorder='little', signed=False)
-        else:
+        if flag & 0x01:
             hrm = int.from_bytes(data[1:3], byteorder='little', signed=False)
+        else:
+            hrm = int.from_bytes(data[1:2], byteorder='little', signed=False)
 
         event = MeasurementEvent(device=device, measurement=HrmMeasurement(hrm))
         self.model.update_hrm(event)
@@ -312,55 +313,25 @@ class CyclingCadenceAndSpeedService(ConnectionService):
         return result
 
     def process_measurement(self, device: Device, data: bytearray):
-        flag = int.from_bytes(data[0:1], byteorder='little', signed=False)
-        value = int.from_bytes(data[1:], byteorder='little', signed=False)
+        # GATT Specification Supplement v5: 3.55.2
+        flag = data[0]
 
-        match flag:
-            case 1:
-                cwr = value & 0xFFFFFF
-                lwet = value >> (4 * 8)
+        offset = 1
 
-                new_cwr = int.from_bytes(data[1:5], byteorder='little', signed=False)
-                new_lwet = int.from_bytes(data[5:7], byteorder='little', signed=False)
+        if flag & 0b01:
+            cwr = int.from_bytes(data[0 + offset:4 + offset], byteorder='little', signed=False)
+            lwet = int.from_bytes(data[4 + offset:6 + offset], byteorder='little', signed=False)
+            offset += 6
 
-                print(f"Speed: cwr={cwr}, lwet={lwet}, new_cwr={new_cwr}, new_lwet={new_lwet}")
+            csc_event = MeasurementEvent(device=device, measurement=SpeedMeasurement(cwr, lwet))
+            self.model.update_speed(csc_event)
 
-                cadence_event = MeasurementEvent(device=device, measurement=SpeedMeasurement(cwr, lwet))
-                self.model.update_speed(cadence_event)
+        if flag & 0b10:
+            ccr = int.from_bytes(data[0 + offset:2 + offset], byteorder='little', signed=False)
+            lcet = int.from_bytes(data[2 + offset:4 + offset], byteorder='little', signed=False)
 
-            case 2:
-                ccr = value & 0xFFFF
-                lcet = value >> (2 * 8)
-
-                new_ccr = int.from_bytes(data[1:3], byteorder='little', signed=False)
-                new_lcet = int.from_bytes(data[3:5], byteorder='little', signed=False)
-
-                print(f"Cadence: ccr={ccr}, lcet={lcet}, new_ccr={new_ccr}, new_lcet={new_lcet}")
-
-                cadence_event = MeasurementEvent(device=device, measurement=CadenceMeasurement(ccr, lcet))
-                self.model.update_cadence(cadence_event)
-
-            case 3:
-                spd = value & 0xFFFFFFFFFFFF
-                cwr = spd & 0xFFFFFF
-                lwet = spd >> (4 * 8)
-
-                new_cwr = int.from_bytes(data[1:5], byteorder='little', signed=False)
-                new_lwet = int.from_bytes(data[5:7], byteorder='little', signed=False)
-                print(f"> Speed: cwr={cwr}, lwet={lwet}, new_cwr={new_cwr}, new_lwet={new_lwet}")
-                speed_event = MeasurementEvent(device=device, measurement=SpeedMeasurement(cwr, lwet))
-                self.model.update_speed(speed_event)
-
-                cad = value >> (6 * 8)
-
-                ccr = cad & 0xFF
-                lcet = cad >> 16
-
-                new_ccr = int.from_bytes(data[7:9], byteorder='little', signed=False)
-                new_lcet = int.from_bytes(data[9:11], byteorder='little', signed=False)
-                print(f"> Cadence: ccr={ccr}, lcet={lcet}, new_ccr={new_ccr}, new_lcet={new_lcet}")
-                cadence_event = MeasurementEvent(device=device, measurement=CadenceMeasurement(ccr, lcet))
-                self.model.update_cadence(cadence_event)
+            csc_event = MeasurementEvent(device=device, measurement=CadenceMeasurement(ccr, lcet))
+            self.model.update_cadence(csc_event)
 
 
 class PowerService(ConnectionService):
@@ -371,6 +342,8 @@ class PowerService(ConnectionService):
         self.model.set_power(device)
 
     def process_measurement(self, device: Device, data: bytearray):
-        power = int.from_bytes(data[:2], byteorder='little', signed=False)
+        # GATT Specification Supplement v5: 3.59.2
+        power = int.from_bytes(data[2:4], byteorder='little', signed=True)
+
         event = MeasurementEvent(device=device, measurement=PowerMeasurement(power))
         self.model.update_power(event)

@@ -130,8 +130,10 @@ class Connection(Generic[T]):
 # Conversion factor from millimeters to kilometers
 MM_TO_KM = 1 / 1_000_000
 
-# Conversion factor from milliseconds to hours
-MS_TO_HR = 1 / (60 * 60 * 1000)
+# Conversion factor from milliseconds to minutes/hours
+# According to the Bluetooth specification, lcet/lwet unit is 1/1024 seconds
+MS_TO_MIN = 1 / (60 * 1024)
+MS_TO_HOUR = 1 / (60 * 60 * 1024)
 
 # Default circumference of the tire in millimeters
 DEFAULT_TIRE_CIRCUMFERENCE_MM = 2168
@@ -189,10 +191,18 @@ class Model:
         new_ccr, new_lcet = event.measurement.ccr, event.measurement.lcet
         last_ccr, last_lcet = self.cadence.state.last_ccr, self.cadence.state.last_lcet
 
-        if new_lcet <= last_lcet:
+        # If the last lcet is the same as the new lcet, we don't need to update the cadence
+        if new_lcet == last_lcet:
             return
 
-        cadence = (new_ccr - last_ccr) / (new_lcet - last_lcet) * 60 * 1000
+        # Handle the case where the lcet has reset
+        lcet_reset_correction = 0 if new_lcet > last_lcet else 0x10000
+
+        total_revolutions = new_ccr - last_ccr
+        time_delta = new_lcet + lcet_reset_correction - last_lcet
+
+        time_delta_minutes = time_delta * MS_TO_MIN
+        cadence = total_revolutions / time_delta_minutes
 
         self.cadence.state = CadenceState(
             first_ccr=last_ccr, first_lcet=last_lcet,
@@ -208,15 +218,18 @@ class Model:
         new_cwr, new_lwet = event.measurement.cwr, event.measurement.lwet
         last_cwr, last_lwet = self.speed.state.last_cwr, self.speed.state.last_lwet
 
-        if new_lwet <= last_lwet:
+        # If the last lwet is the same as the new lwet, we don't need to update the speed
+        if new_lwet == last_lwet:
             return
 
+        # Handle the case where the lwet has reset
+        lwet_reset_correction = 0 if new_lwet > last_lwet else 0x10000
         total_revolutions = new_cwr - last_cwr
-        time_delta = new_lwet - last_lwet
+        time_delta = new_lwet + lwet_reset_correction - last_lwet
         tire_circumference = TIRE_CIRCUMFERENCE_MM.get(self.tire_type, DEFAULT_TIRE_CIRCUMFERENCE_MM)
 
         total_kmh = total_revolutions * tire_circumference * MM_TO_KM
-        time_hours = time_delta * MS_TO_HR
+        time_hours = time_delta * MS_TO_HOUR
         speed = total_kmh / time_hours
 
         self.speed.state = SpeedState(

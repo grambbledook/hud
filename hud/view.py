@@ -286,12 +286,13 @@ class HUDView(QMainWindow):
             parent=None,
     ):
         super().__init__(parent)
+        self.controller = controller
 
         self.layout = None
         self.centralWidget = None
         self.style = style
 
-        self.heart_rate_monitor = DevicePanel(
+        self.heart_rate_monitor_panel = DevicePanel(
             model=model,
             ble_service_type=HRM,
             controller=controller,
@@ -299,10 +300,10 @@ class HUDView(QMainWindow):
             highlighted_icon_path="assets/hrm_high.png",
             style=self.style,
         )
-        model.hrm_notifications.devices.subscribe(self.heart_rate_monitor.updateDevice)
-        model.hrm_notifications.metrics.subscribe(self.heart_rate_monitor.updateMetrics)
+        model.hrm_notifications.devices.subscribe(self.heart_rate_monitor_panel.updateDevice)
+        model.hrm_notifications.metrics.subscribe(self.heart_rate_monitor_panel.updateMetrics)
 
-        self.cadence_sensor = DevicePanel(
+        self.cadence_sensor_panel = DevicePanel(
             model=model,
             ble_service_type=CSC,
             controller=controller,
@@ -310,10 +311,10 @@ class HUDView(QMainWindow):
             highlighted_icon_path="assets/cad_high.png",
             style=self.style,
         )
-        model.cad_notifications.devices.subscribe(self.cadence_sensor.updateDevice)
-        model.cad_notifications.metrics.subscribe(self.cadence_sensor.updateMetrics)
+        model.cad_notifications.devices.subscribe(self.cadence_sensor_panel.updateDevice)
+        model.cad_notifications.metrics.subscribe(self.cadence_sensor_panel.updateMetrics)
 
-        self.power_meter = DevicePanel(
+        self.power_meter_panel = DevicePanel(
             model=model,
             ble_service_type=PWR,
             controller=controller,
@@ -321,10 +322,10 @@ class HUDView(QMainWindow):
             highlighted_icon_path="assets/pwr_high.png",
             style=self.style,
         )
-        model.pwr_notifications.devices.subscribe(self.power_meter.updateDevice)
-        model.pwr_notifications.metrics.subscribe(self.power_meter.updateMetrics)
+        model.pwr_notifications.devices.subscribe(self.power_meter_panel.updateDevice)
+        model.pwr_notifications.metrics.subscribe(self.power_meter_panel.updateMetrics)
 
-        self.speed_sensor = DevicePanel(
+        self.speed_sensor_panel = DevicePanel(
             model=model,
             ble_service_type=CSC,
             controller=controller,
@@ -332,8 +333,8 @@ class HUDView(QMainWindow):
             highlighted_icon_path="assets/spd_high.png",
             style=self.style,
         )
-        model.spd_notifications.devices.subscribe(self.speed_sensor.updateDevice)
-        model.spd_notifications.metrics.subscribe(self.speed_sensor.updateMetrics)
+        model.spd_notifications.devices.subscribe(self.speed_sensor_panel.updateDevice)
+        model.spd_notifications.metrics.subscribe(self.speed_sensor_panel.updateMetrics)
 
         self.createUI(style)
 
@@ -370,15 +371,15 @@ class HUDView(QMainWindow):
         self.centralWidget.setLayout(self.layout)
         self.setCentralWidget(self.centralWidget)
 
-        self.layout.addWidget(self.heart_rate_monitor, 0, 0)
-        self.layout.addWidget(self.cadence_sensor, 0, 1)
-        self.layout.addWidget(self.power_meter, 1, 0)
-        self.layout.addWidget(self.speed_sensor, 1, 1)
+        self.layout.addWidget(self.heart_rate_monitor_panel, 0, 0)
+        self.layout.addWidget(self.cadence_sensor_panel, 0, 1)
+        self.layout.addWidget(self.power_meter_panel, 1, 0)
+        self.layout.addWidget(self.speed_sensor_panel, 1, 1)
 
-        self.heart_rate_monitor.createUI(self.style)
-        self.cadence_sensor.createUI(self.style)
-        self.power_meter.createUI(self.style)
-        self.speed_sensor.createUI(self.style)
+        self.heart_rate_monitor_panel.createUI(self.style)
+        self.cadence_sensor_panel.createUI(self.style)
+        self.power_meter_panel.createUI(self.style)
+        self.speed_sensor_panel.createUI(self.style)
 
         self.update()
 
@@ -418,18 +419,18 @@ class HUDView(QMainWindow):
         else:
             self.style = BRIGHT
 
-        self.heart_rate_monitor.createUI(self.style)
-        self.cadence_sensor.createUI(self.style)
-        self.speed_sensor.createUI(self.style)
-        self.power_meter.createUI(self.style)
+        self.heart_rate_monitor_panel.createUI(self.style)
+        self.cadence_sensor_panel.createUI(self.style)
+        self.speed_sensor_panel.createUI(self.style)
+        self.power_meter_panel.createUI(self.style)
         self.adjustSize()
         self.update()
 
     def toggleHideButtons(self):
-        self.heart_rate_monitor.switchLayout()
-        self.cadence_sensor.switchLayout()
-        self.speed_sensor.switchLayout()
-        self.power_meter.switchLayout()
+        self.heart_rate_monitor_panel.switchLayout()
+        self.cadence_sensor_panel.switchLayout()
+        self.speed_sensor_panel.switchLayout()
+        self.power_meter_panel.switchLayout()
 
         if self.hide_buttons.text() == "Hide Buttons":
             self.hide_buttons.setText("Show Buttons")
