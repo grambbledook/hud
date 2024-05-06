@@ -6,7 +6,7 @@ from qasync import QApplication, QEventLoop
 
 from hud.controller import DeviceController
 from hud.services import Model, BleDiscoveryService, CyclingCadenceAndSpeedService, HrmService, PowerService, \
-    DeviceRegistry
+    DeviceRegistry, ConfigService
 from hud.view import HUDView, BRIGHT
 
 if __name__ == "__main__":
@@ -23,11 +23,21 @@ if __name__ == "__main__":
 
     registry = DeviceRegistry()
 
+    discovery_service = BleDiscoveryService(pool, model)
+    hr_service = HrmService(pool, model, registry)
+    csc_service = CyclingCadenceAndSpeedService(pool, model, registry)
+    power_service = PowerService(pool, model, registry)
     controller = DeviceController(
-        scan_service=BleDiscoveryService(pool, model),
-        hrm_service=HrmService(pool, model, registry),
-        csc_service=CyclingCadenceAndSpeedService(pool, model, registry),
-        power_service=PowerService(pool, model, registry),
+        scan_service=discovery_service,
+        hr_service=hr_service,
+        csc_service=csc_service,
+        power_service=power_service,
+        config_service=ConfigService(
+            model=model,
+            hr_service=hr_service,
+            csc_service=csc_service,
+            power_service=power_service,
+        )
     )
 
     view = HUDView(controller, model, style=BRIGHT)

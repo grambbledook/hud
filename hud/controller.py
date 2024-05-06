@@ -2,7 +2,8 @@ from typing import Protocol
 
 from hud import model
 from hud.model import Device, Model
-from hud.services import BleDiscoveryService, CyclingCadenceAndSpeedService, HrmService, PowerService, DeviceRegistry
+from hud.services import BleDiscoveryService, CyclingCadenceAndSpeedService, HrmService, PowerService, DeviceRegistry, \
+    ConfigService
 
 
 class View(Protocol):
@@ -14,15 +15,17 @@ class DeviceController:
     def __init__(
             self,
             scan_service: BleDiscoveryService,
-            hrm_service: HrmService,
+            hr_service: HrmService,
             csc_service: CyclingCadenceAndSpeedService,
             power_service: PowerService,
+            config_service: ConfigService,
 
     ):
         self.scan_service = scan_service
-        self.hrm_service = hrm_service
+        self.hrm_service = hr_service
         self.csc_service = csc_service
         self.power_service = power_service
+        self.config_service = config_service
 
     def start_scan(self):
         self.scan_service.start_scan()
@@ -53,3 +56,11 @@ class DeviceController:
         self.power_service.stop()
 
         print("All services stopped.")
+
+    def store(self):
+        print("Storing configuration...")
+        self.config_service.store()
+
+    def load(self):
+        print("Loading configuration...")
+        self.config_service.load()

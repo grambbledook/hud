@@ -76,6 +76,12 @@ class DeviceController(Protocol):
     def stop(self):
         ...
 
+    def store(self):
+        ...
+
+    def load(self):
+        ...
+
 
 class ClickableLabel(QLabel):
     clicked = Signal()
@@ -134,11 +140,10 @@ class DeviceDialog(QDialog):
 
         self.layout = QVBoxLayout(self)
         self.layout.addWidget(self.listWidget)
-        self.layout.addWidget(self.closeLabel)
         self.layout.addLayout(self.hLayout)
 
-        self.setWindowFlags(Qt.FramelessWindowHint | Qt.Dialog)
-        self.setAttribute(Qt.WA_TranslucentBackground)
+        self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Dialog)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
 
         self.update()
 
@@ -151,16 +156,16 @@ class DeviceDialog(QDialog):
 
     def showDevice(self, device):
         item = QListWidgetItem(device.name)
-        item.setData(Qt.UserRole, device)
-        if self.listWidget.findItems(device.name, Qt.MatchExactly):
+        item.setData(Qt.ItemDataRole.UserRole, device)
+        if self.listWidget.findItems(device.name, Qt.MatchFlag.MatchExactly):
             return
         self.listWidget.addItem(item)
 
     def selectItem(self, item):
-        self.selectedDevice = item.data(Qt.UserRole)
+        self.selectedDevice = item.data(Qt.ItemDataRole.UserRole)
 
     def confirmSelection(self, item):
-        device = item.data(Qt.UserRole)
+        device = item.data(Qt.ItemDataRole.UserRole)
 
         self.selectDeviceSignal.emit(device)
         self.accept()
@@ -205,9 +210,10 @@ class DevicePanel(QMainWindow):
 
         device_tooltip = self.selectIcon.toolTip() if self.selectIcon else "No device selected"
 
-        self.selectIcon = ClickableLabel(self.normal_icon_path, self.highlighted_icon_path, self)
-        self.selectIcon.setToolTip(device_tooltip)
-        self.selectIcon.clicked.connect(self.showSelectDeviceDialog)
+        if not self.selectIcon:
+            self.selectIcon = ClickableLabel(self.normal_icon_path, self.highlighted_icon_path, self)
+            self.selectIcon.setToolTip(device_tooltip)
+            self.selectIcon.clicked.connect(self.showSelectDeviceDialog)
 
         self.metricLabel = QLabel("--/--", self)
         self.metricLabel.setStyleSheet(style.metrics_lable)
@@ -215,8 +221,8 @@ class DevicePanel(QMainWindow):
 
         # Create a QHBoxLayout, add the metricLabel to it, and add it to the main layout
         self.layout = QGridLayout()
-        self.layout.addWidget(self.selectIcon, 0, 0, 1, 1, Qt.AlignCenter)
-        self.layout.addWidget(self.metricLabel, 1, 0, 1, 1, Qt.AlignCenter)
+        self.layout.addWidget(self.selectIcon, 0, 0, 1, 1, Qt.AlignmentFlag.AlignCenter)
+        self.layout.addWidget(self.metricLabel, 1, 0, 1, 1, Qt.AlignmentFlag.AlignCenter)
 
         self.centralWidget = QWidget(self)
         self.centralWidget.setLayout(self.layout)
@@ -275,7 +281,6 @@ class DevicePanel(QMainWindow):
         self.metricLabel.setText(str(value))
 
     def closeEvent(self, event):
-        self.disconnect()
         event.accept()
 
 
@@ -391,19 +396,23 @@ class HUDView(QMainWindow):
         self.update()
 
     def mousePressEvent(self, event):
-        if event.button() == Qt.LeftButton:
+        if event.button() == Qt.MouseButton.LeftButton:
             self.m_drag = True
             self.m_DragPosition = event.globalPos() - self.pos()
             event.accept()
 
     def mouseMoveEvent(self, event):
-        if event.buttons() == Qt.LeftButton and self.m_drag:
+        if event.buttons() == Qt.MouseButton.LeftButton and self.m_drag:
             self.move(event.globalPos() - self.m_DragPosition)
             event.accept()
 
     def mouseReleaseEvent(self, event):
         self.m_drag = False
         self.update()
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self.controller.load()
 
     def paintEvent(self, event):
         painter = QPainter(self)
@@ -417,6 +426,7 @@ class HUDView(QMainWindow):
 
     def quit_app(self):
         self.tray_icon.hide()
+        self.controller.store()
         self.controller.stop()
         QApplication.quit()
 
