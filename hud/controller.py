@@ -3,7 +3,7 @@ from typing import Protocol
 from hud import model
 from hud.model import Device, Model
 from hud.services import BleDiscoveryService, CyclingCadenceAndSpeedService, HrmService, PowerService, DeviceRegistry, \
-    ConfigService
+    DataManagementService
 
 
 class View(Protocol):
@@ -18,7 +18,7 @@ class DeviceController:
             hr_service: HrmService,
             csc_service: CyclingCadenceAndSpeedService,
             power_service: PowerService,
-            config_service: ConfigService,
+            config_service: DataManagementService,
 
     ):
         self.scan_service = scan_service

@@ -1,68 +1,12 @@
-import dataclasses
-from typing import Protocol, Tuple
+from typing import Protocol
 
 from PySide6.QtCore import Signal, Qt, QPoint, QTimer
 from PySide6.QtGui import QIcon, QPixmap, QColor, QPainter, QBrush, QAction
 from PySide6.QtWidgets import QApplication, QMainWindow, QLabel, QVBoxLayout, QWidget, QDialog, QListWidget, \
     QListWidgetItem, QGridLayout, QSystemTrayIcon, QMenu, QHBoxLayout
 
+from hud.config import Config, Theme, BRIGHT, DARK, AppLayout
 from hud.model import Model, Device, Service, HRM, CSC, PWR
-
-
-@dataclasses.dataclass
-class Style:
-    device_dialog: str
-    metrics_lable: str
-    colour: Tuple[int, int, int]
-
-
-DARK = Style(
-    device_dialog="""
-        QListWidget {
-            background-color: transparent;
-            color: white;
-        }
-        QListWidget::item {
-            background-color: transparent;
-        }
-        QListWidget::item:selected {
-            background-color: #808080;
-        }
-    """,
-    metrics_lable="""
-        QLabel {
-            color: white;
-            font-weight: bold;
-            font-size: 32px;
-            text-align: center;
-        }
-    """,
-    colour=(0, 0, 0),
-)
-
-BRIGHT = Style(
-    device_dialog="""
-        QListWidget {
-            background-color: transparent;
-            color: black;
-        }
-        QListWidget::item {
-            background-color: transparent;
-        }
-        QListWidget::item:selected {
-            background-color: #808080;
-        }
-    """,
-    metrics_lable="""
-        QLabel {
-            color: black;
-            font-weight: bold;
-            font-size: 32px;
-            text-align: center;
-        }
-    """,
-    colour=(255, 255, 255),
-)
 
 
 class DeviceController(Protocol):
@@ -86,29 +30,46 @@ class DeviceController(Protocol):
 class ClickableLabel(QLabel):
     clicked = Signal()
 
-    def __init__(self, normal_icon_path, highlighted_icon_path, parent=None):
+    def __init__(self, normal_icon_path: str, highlighted_icon_path: str, theme: Theme, parent=None):
         super().__init__(parent)
         self.normal_icon_path = normal_icon_path
         self.highlighted_icon_path = highlighted_icon_path
-        self.setPixmap(QPixmap(self.normal_icon_path))
+        self.norm = self.compute(self.normal_icon_path, theme)
+        self.high = self.compute(self.highlighted_icon_path, theme)
+        self.setPixmap(self.norm)
 
     def enterEvent(self, event):
-        self.setPixmap(QPixmap(self.highlighted_icon_path))
+        self.setPixmap(self.high)
 
     def leaveEvent(self, event):
-        self.setPixmap(QPixmap(self.normal_icon_path))
+        self.setPixmap(self.norm)
 
     def mousePressEvent(self, event):
         self.clicked.emit()
+
+    def compute(self, icon_path, theme) -> QPixmap:
+        pixmap = QPixmap(icon_path)
+        image = pixmap.toImage()
+
+        for x in range(image.width()):
+            for y in range(image.height()):
+                color = QColor.fromRgba(image.pixel(x, y))
+
+                if color.alpha() == 0:
+                    continue
+                r, g, b = theme.background_colour
+                color.setRgb(r ^ 0xFF, g ^ 0xFF, b ^ 0xFF)
+                image.setPixel(x, y, color.rgba())
+        return QPixmap.fromImage(image)
 
 
 class DeviceDialog(QDialog):
     selectedDevice = None
     selectDeviceSignal = Signal(object)
 
-    def __init__(self, parent=None, ):
+    def __init__(self, parent=None):
         super().__init__(parent)
-        self.style = None
+        self.theme = None
 
         self.selectedDevice = None
 
@@ -118,18 +79,18 @@ class DeviceDialog(QDialog):
         self.layout = None
         self.hLayout = None
 
-    def createUI(self, style):
-        self.style = style
+    def createUI(self, theme: Theme):
+        self.theme = theme
 
         self.listWidget = QListWidget(self)
         self.listWidget.itemClicked.connect(self.selectItem)
         self.listWidget.itemDoubleClicked.connect(self.confirmSelection)
-        self.listWidget.setStyleSheet(style.device_dialog)
+        self.listWidget.setStyleSheet(self.theme.colour_scheme)
 
         self.closeLabel = ClickableLabel(
             "assets/ok.png",
             "assets/ok_high.png",
-            self,
+            theme=self.theme,
         )
         self.closeLabel.clicked.connect(self.onLabelClicked)
 
@@ -173,7 +134,7 @@ class DeviceDialog(QDialog):
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setOpacity(0.75)  # Set the opacity
-        painter.setBrush(QBrush(QColor(*self.style.colour)))  # Set the color to black
+        painter.setBrush(QBrush(QColor(*self.theme.background_colour)))
         painter.drawRect(self.rect())
 
 
@@ -186,10 +147,10 @@ class DevicePanel(QMainWindow):
             controller: DeviceController,
             ble_service_type: Service,
             model: Model,
-            style: Style,
             parent=None
     ):
         super().__init__(parent)
+        self.app_layout = None
         self.metricLabel = None
         self.selectIcon = None
         self.dialog = None
@@ -198,25 +159,24 @@ class DevicePanel(QMainWindow):
         self.layout = None
         self.centralWidget = None
 
-        self.style = style
         self.model = model
         self.ble_service_type = ble_service_type
         self.controller = controller
         self.highlighted_icon_path = highlighted_icon_path
         self.normal_icon_path = normal_icon_path
 
-    def createUI(self, style: Style):
-        self.style = style
+    def createUI(self, app_layout: AppLayout):
+        self.app_layout = app_layout
 
         device_tooltip = self.selectIcon.toolTip() if self.selectIcon else "No device selected"
 
-        if not self.selectIcon:
-            self.selectIcon = ClickableLabel(self.normal_icon_path, self.highlighted_icon_path, self)
+        if self.app_layout.show_buttons:
+            self.selectIcon = ClickableLabel(self.normal_icon_path, self.highlighted_icon_path, self.app_layout.theme)
             self.selectIcon.setToolTip(device_tooltip)
             self.selectIcon.clicked.connect(self.showSelectDeviceDialog)
 
         self.metricLabel = QLabel("--/--", self)
-        self.metricLabel.setStyleSheet(style.metrics_lable)
+        self.metricLabel.setStyleSheet(self.app_layout.theme.colour_scheme)
         self.metricLabel.setToolTip(device_tooltip)
 
         # Create a QHBoxLayout, add the metricLabel to it, and add it to the main layout
@@ -231,7 +191,7 @@ class DevicePanel(QMainWindow):
         self.update()
 
     def switchLayout(self):
-        if self.selectIcon.isVisible():
+        if self.app_layout.show_buttons:
             self.selectIcon.hide()
         else:
             self.selectIcon.show()
@@ -244,7 +204,7 @@ class DevicePanel(QMainWindow):
 
     def showSelectDeviceDialog(self):
         self.dialog = DeviceDialog(self)
-        self.dialog.createUI(self.style)
+        self.dialog.createUI(self.app_layout.theme)
         self.dialog.selectDeviceSignal.connect(self.deviceSelected)
 
         self.controller.start_scan()
@@ -289,9 +249,9 @@ class HUDView(QMainWindow):
 
     def __init__(
             self,
+            app_config: Config,
             controller: DeviceController,
             model: Model,
-            style: Style,
             parent=None,
     ):
         super().__init__(parent)
@@ -300,7 +260,7 @@ class HUDView(QMainWindow):
 
         self.layout = None
         self.centralWidget = None
-        self.style = style
+        self.app_config = app_config
 
         self.heart_rate_monitor_panel = DevicePanel(
             model=model,
@@ -308,7 +268,6 @@ class HUDView(QMainWindow):
             controller=controller,
             normal_icon_path="assets/hrm.png",
             highlighted_icon_path="assets/hrm_high.png",
-            style=self.style,
         )
         self.heart_rate_monitor_panel.bind_to_model(model.hrm_notifications)
 
@@ -318,7 +277,6 @@ class HUDView(QMainWindow):
             controller=controller,
             normal_icon_path="assets/cad.png",
             highlighted_icon_path="assets/cad_high.png",
-            style=self.style,
         )
         self.cadence_sensor_panel.bind_to_model(model.cad_notifications)
 
@@ -328,7 +286,6 @@ class HUDView(QMainWindow):
             controller=controller,
             normal_icon_path="assets/pwr.png",
             highlighted_icon_path="assets/pwr_high.png",
-            style=self.style,
         )
         self.power_meter_panel.bind_to_model(model.pwr_notifications)
 
@@ -338,11 +295,10 @@ class HUDView(QMainWindow):
             controller=controller,
             normal_icon_path="assets/spd.png",
             highlighted_icon_path="assets/spd_high.png",
-            style=self.style,
         )
         self.speed_sensor_panel.bind_to_model(model.spd_notifications)
 
-        self.createUI(style)
+        self.createUI(self.app_config.app_layout.theme)
 
         self.setWindowFlags(Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.FramelessWindowHint)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
@@ -358,7 +314,7 @@ class HUDView(QMainWindow):
         self.hide_buttons.triggered.connect(self.toggleHideButtons)
 
         self.quit_action = QAction("Quit", self)
-        self.quit_action.triggered.connect(self.quit_app)
+        self.quit_action.triggered.connect(self.quitApp)
 
         self.tray_icon_menu.addAction(self.switch_theme)
         self.tray_icon_menu.addAction(self.hide_buttons)
@@ -369,8 +325,8 @@ class HUDView(QMainWindow):
         self.m_drag = False
         self.m_DragPosition = QPoint()
 
-    def createUI(self, style: Style):
-        self.style = style
+    def createUI(self, style: Theme):
+        self.app_config.theme = style
 
         self.layout = QGridLayout()
         self.centralWidget = QWidget(self)
@@ -382,17 +338,16 @@ class HUDView(QMainWindow):
         self.layout.addWidget(self.power_meter_panel, 1, 0)
         self.layout.addWidget(self.speed_sensor_panel, 1, 1)
 
-        self.heart_rate_monitor_panel.createUI(self.style)
-        self.cadence_sensor_panel.createUI(self.style)
-        self.power_meter_panel.createUI(self.style)
-        self.speed_sensor_panel.createUI(self.style)
+        self.heart_rate_monitor_panel.createUI(self.app_config.app_layout)
+        self.cadence_sensor_panel.createUI(self.app_config.app_layout)
+        self.power_meter_panel.createUI(self.app_config.app_layout)
+        self.speed_sensor_panel.createUI(self.app_config.app_layout)
 
         self.heart_rate_monitor_panel.bind_to_model(self.model.hrm_notifications)
         self.cadence_sensor_panel.bind_to_model(self.model.cad_notifications)
         self.power_meter_panel.bind_to_model(self.model.pwr_notifications)
         self.speed_sensor_panel.bind_to_model(self.model.spd_notifications)
 
-        self.resize(200, 200)
         self.update()
 
     def mousePressEvent(self, event):
@@ -412,46 +367,52 @@ class HUDView(QMainWindow):
 
     def showEvent(self, event):
         super().showEvent(event)
+
+        if not self.app_config.connect_on_start:
+            return
         self.controller.load()
 
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setOpacity(0.25)  # Set the opacity
-        painter.setBrush(QBrush(QColor(*self.style.colour)))  # Set the color to black
+        painter.setBrush(QBrush(QColor(*self.app_config.app_layout.theme.background_colour)))  # Set the color to black
         painter.drawRect(self.rect())
 
     def closeEvent(self, event):
         self.shutdown_signal.emit()
         event.accept()
 
-    def quit_app(self):
+    def quitApp(self):
         self.tray_icon.hide()
         self.controller.store()
         self.controller.stop()
         QApplication.quit()
 
     def switchTheme(self):
-        if self.style == BRIGHT:
-            self.style = DARK
+        if self.app_config.app_layout.theme == BRIGHT:
+            self.app_config.app_layout.theme = DARK
         else:
-            self.style = BRIGHT
+            self.app_config.app_layout.theme = BRIGHT
 
-        self.heart_rate_monitor_panel.createUI(self.style)
-        self.cadence_sensor_panel.createUI(self.style)
-        self.speed_sensor_panel.createUI(self.style)
-        self.power_meter_panel.createUI(self.style)
+        self.heart_rate_monitor_panel.createUI(self.app_config.app_layout)
+        self.cadence_sensor_panel.createUI(self.app_config.app_layout)
+        self.power_meter_panel.createUI(self.app_config.app_layout)
+        self.speed_sensor_panel.createUI(self.app_config.app_layout)
+
         self.adjustSize()
         self.update()
 
     def toggleHideButtons(self):
+        if self.app_config.app_layout.show_buttons:
+            self.hide_buttons.setText("Hide Buttons")
+        else:
+            self.hide_buttons.setText("Show Buttons")
+
+        self.app_config.app_layout.show_buttons = not self.app_config.app_layout.show_buttons
+
         self.heart_rate_monitor_panel.switchLayout()
         self.cadence_sensor_panel.switchLayout()
         self.speed_sensor_panel.switchLayout()
         self.power_meter_panel.switchLayout()
-
-        if self.hide_buttons.text() == "Hide Buttons":
-            self.hide_buttons.setText("Show Buttons")
-        else:
-            self.hide_buttons.setText("Hide Buttons")
 
         self.update()

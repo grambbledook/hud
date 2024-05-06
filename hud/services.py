@@ -351,7 +351,7 @@ class PowerService(ConnectionService):
         self.model.update_power(event)
 
 
-class ConfigService:
+class DataManagementService:
     def __init__(self, model: Model, hr_service: HrmService, csc_service: CyclingCadenceAndSpeedService,
                  power_service: PowerService):
         self.model = model
