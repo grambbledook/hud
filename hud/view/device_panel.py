@@ -38,21 +38,32 @@ class DevicePanel(QMainWindow):
         self.highlighted_icon_path = highlighted_icon_path
         self.normal_icon_path = normal_icon_path
 
-    def createUI(self):
-        device_tooltip = self.selectIcon.toolTip() if self.selectIcon else "No device selected"
-
-        if self.app_config.hud_layout.show_buttons:
-            self.selectIcon = ClickableLabel(
-                normal_icon_path=self.normal_icon_path,
-                highlighted_icon_path=self.highlighted_icon_path,
-                theme=self.app_config.hud_layout.theme,
-            )
-            self.selectIcon.setToolTip(device_tooltip)
-            self.selectIcon.clicked.connect(self.showSelectDeviceDialog)
+        self.selectIcon = ClickableLabel(
+            normal_icon_path=self.normal_icon_path,
+            highlighted_icon_path=self.highlighted_icon_path,
+            theme=self.app_config.hud_layout.theme,
+        )
+        self.selectIcon.setToolTip("No device selected")
+        self.selectIcon.clicked.connect(self.showSelectDeviceDialog)
 
         self.metricLabel = QLabel("--/--", self)
         self.metricLabel.setStyleSheet(self.app_config.hud_layout.theme.colour_scheme)
-        self.metricLabel.setToolTip(device_tooltip)
+        self.metricLabel.setToolTip("No device selected")
+
+        self.layout = QGridLayout()
+        self.layout.addWidget(self.selectIcon, 0, 0, 1, 1, Qt.AlignmentFlag.AlignCenter)
+        self.layout.addWidget(self.metricLabel, 1, 0, 1, 1, Qt.AlignmentFlag.AlignCenter)
+
+        self.centralWidget = QWidget(self)
+        self.centralWidget.setLayout(self.layout)
+        self.setCentralWidget(self.centralWidget)
+
+    def createUI(self):
+        self.selectIcon.applyTheme(self.app_config.hud_layout.theme)
+        self.selectIcon.update()
+
+        self.metricLabel.setStyleSheet(self.app_config.hud_layout.theme.colour_scheme)
+        self.metricLabel.update()
 
         # Create a QHBoxLayout, add the metricLabel to it, and add it to the main layout
         self.layout = QGridLayout()
@@ -113,7 +124,7 @@ class DevicePanel(QMainWindow):
         self.metricLabel.setToolTip(str(value))
 
     def updateMetrics(self, value):
-        self.metricLabel.setText(str(value))
+        self.metricLabel.setText(str(value.latest))
 
     def closeEvent(self, event):
         event.accept()

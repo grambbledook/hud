@@ -9,9 +9,7 @@ from hud.view import DeviceController
 from hud.view.device_panel import DevicePanel
 
 
-class HUDView(QMainWindow):
-    shutdown_signal = Signal()
-
+class TrainerWindow(QMainWindow):
     def __init__(
             self,
             app_config: Config,
@@ -23,7 +21,6 @@ class HUDView(QMainWindow):
         self.model = model
         self.controller = controller
 
-        self.layout = None
         self.centralWidget = None
         self.app_config = app_config
 

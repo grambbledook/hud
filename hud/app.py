@@ -14,7 +14,7 @@ from hud.service.ble.power_meter_service import PowerService
 from hud.service.ble.scanner import BleDiscoveryService
 from hud.service.data_management_service import DataManagementService
 from hud.service.device_registry import DeviceRegistry
-from hud.view.hud_window import HUDView
+from hud.view.metrics_window import MetricsWindow
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
@@ -51,7 +51,7 @@ if __name__ == "__main__":
         config_service=config_service
     )
 
-    view = HUDView(app_config, controller, model)
+    view = MetricsWindow(app_config, controller, model)
     view.show()
 
     with loop:

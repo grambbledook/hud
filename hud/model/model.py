@@ -6,41 +6,6 @@ from hud.model import T
 from hud.model.data_classes import Device
 from hud.model.events import MeasurementEvent, CadenceMeasurement, SpeedMeasurement, PowerMeasurement, HrMeasurement
 
-
-@dataclass
-class HrmState:
-    latest: int
-
-
-@dataclass
-class SpeedState:
-    first_cwr: int
-    first_lwet: int
-    last_cwr: int
-    last_lwet: int
-    latest: float
-
-
-@dataclass
-class CadenceState:
-    first_ccr: int
-    first_lcet: int
-    last_ccr: int
-    last_lcet: int
-    latest: float
-
-
-@dataclass
-class PowerState:
-    latest: int
-
-
-@dataclass
-class Connection(Generic[T]):
-    device: Optional[Device]
-    state: T
-
-
 # Conversion factor from millimeters to kilometers
 MM_TO_KM = 1 / 1_000_000
 
@@ -61,13 +26,72 @@ TIRE_CIRCUMFERENCE_MM = {
 
 
 @dataclass
+class State(Generic[T]):
+    latest: T
+    min: T
+    max: T
+    average: float
+    count: int
+
+
+@dataclass
+class HrmState(State[int]):
+    latest: int = 0
+    min: int = 0
+    max: int = 0
+    average: float = 0
+    count: int = 0
+
+
+@dataclass
+class SpeedState(State[float]):
+    first_cwr: int = 0
+    first_lwet: int = 0
+    last_cwr: int = 0
+    last_lwet: int = 0
+    latest: float = 0
+    min: float = 0
+    max: float = 0
+    average: float = 0
+    count: int = 0
+
+
+@dataclass
+class CadenceState(State[float]):
+    first_ccr: int = 0
+    first_lcet: int = 0
+    last_ccr: int = 0
+    last_lcet: int = 0
+    latest: int = 0
+    min: int = 0
+    max: int = 0
+    average: float = 0
+    count: int = 0
+
+
+@dataclass
+class PowerState(State[int]):
+    latest: int = 0
+    min: int = 0
+    max: int = 0
+    average: float = 0
+    count: int = 0
+
+
+@dataclass
+class Connection(Generic[T]):
+    device: Optional[Device]
+    state: T
+
+
+@dataclass
 class Model:
     tire_type: str = "700-35C"
 
-    hrm: Connection[HrmState] = Connection(None, HrmState(0))
-    speed: Connection[SpeedState] = Connection(None, SpeedState(0, 0, 0, 0, 0))
-    cadence: Connection[CadenceState] = Connection(None, CadenceState(0, 0, 0, 0, 0))
-    power: Connection[PowerState] = Connection(None, PowerState(0))
+    hrm: Connection[HrmState] = Connection(None, HrmState())
+    speed: Connection[SpeedState] = Connection(None, SpeedState())
+    cadence: Connection[CadenceState] = Connection(None, CadenceState())
+    power: Connection[PowerState] = Connection(None, PowerState())
 
     devices: list[Device] = field(default_factory=list)
 
@@ -78,25 +102,25 @@ class Model:
 
     def set_cadence(self, device: Device):
         print("Setting cadence: ", device)
-        self.cadence = Connection(device, CadenceState(0, 0, 0, 0, 0))
+        self.cadence = Connection(device, CadenceState())
         self.cad_notifications.devices.notify(device.name)
-        self.cad_notifications.metrics.notify(0)
+        self.cad_notifications.metrics.notify(self.cadence.state)
 
     def set_speed(self, device: Device):
         print("Setting speed: ", device)
-        self.speed = Connection(device, SpeedState(0, 0, 0, 0, 0))
+        self.speed = Connection(device, SpeedState())
         self.spd_notifications.devices.notify(device.name)
-        self.spd_notifications.metrics.notify(0)
+        self.spd_notifications.metrics.notify(self.speed.state)
 
     def set_power(self, device: Device):
-        self.power = Connection(device, PowerState(0))
+        self.power = Connection(device, PowerState())
         self.pwr_notifications.devices.notify(device.name)
-        self.pwr_notifications.metrics.notify(0)
+        self.pwr_notifications.metrics.notify(self.power.state)
 
     def set_hrm(self, device: Device):
-        self.hrm = Connection(device, HrmState(0))
+        self.hrm = Connection(device, HrmState())
         self.hrm_notifications.devices.notify(device.name)
-        self.hrm_notifications.metrics.notify(0)
+        self.hrm_notifications.metrics.notify(self.hrm.state)
 
     def update_cadence(self, event: MeasurementEvent[CadenceMeasurement]):
         if event.device != self.cadence.device:
@@ -118,12 +142,18 @@ class Model:
         time_delta_minutes = time_delta * MS_TO_MIN
         cadence = total_revolutions / time_delta_minutes
 
-        self.cadence.state = CadenceState(
-            first_ccr=last_ccr, first_lcet=last_lcet,
-            last_ccr=new_ccr, last_lcet=new_lcet,
-            latest=cadence
-        )
-        self.cad_notifications.metrics.notify(round(cadence))
+        state = self.cadence.state
+
+        state.first_ccr, state.first_ccr = last_ccr, last_lcet
+        state.last_lcet, state.last_ccr = new_lcet, new_ccr
+
+        state.latest = round(cadence)
+        state.min = min(cadence, state.min)
+        state.max = max(cadence, state.max)
+        state.average = round((state.average * state.count + cadence) // (state.count + 1))
+        state.count += 1
+
+        self.cad_notifications.metrics.notify(state)
 
     def update_speed(self, event: MeasurementEvent[SpeedMeasurement]):
         if event.device != self.speed.device:
@@ -144,25 +174,45 @@ class Model:
 
         total_kmh = total_revolutions * tire_circumference * MM_TO_KM
         time_hours = time_delta * MS_TO_HOUR
-        speed = total_kmh / time_hours
+        speed = round(total_kmh / time_hours, 1)
 
-        self.speed.state = SpeedState(
-            first_cwr=last_cwr, first_lwet=last_lwet,
-            last_cwr=new_cwr, last_lwet=new_lwet,
-            latest=speed
-        )
-        self.spd_notifications.metrics.notify(round(speed, 1))
+        state = self.speed.state
+
+        state.first_cwr, state.first_lwet = last_cwr, last_lwet
+        state.last_lwet, state.last_cwr = new_lwet, new_cwr
+
+        state.latest = speed
+        state.min = min(speed, state.min)
+        state.max = max(speed, state.max)
+        state.average = round((state.average * state.count + speed) / (state.count + 1), 1)
+        state.count += 1
+
+        self.spd_notifications.metrics.notify(state)
 
     def update_hrm(self, event: MeasurementEvent[HrMeasurement]):
         if event.device != self.hrm.device:
             return
 
-        self.hrm.state = HrmState(event.measurement.hrm)
-        self.hrm_notifications.metrics.notify(event.measurement.hrm)
+        state = self.hrm.state
+
+        state.latest = event.measurement.hrm
+        state.min = min(event.measurement.hrm, state.min)
+        state.max = max(event.measurement.hrm, state.max)
+        state.average = (state.average * state.count + event.measurement.hrm) // (state.count + 1)
+        state.count += 1
+
+        self.hrm_notifications.metrics.notify(state)
 
     def update_power(self, event: MeasurementEvent[PowerMeasurement]):
         if event.device != self.power.device:
             return
 
-        self.power.state = PowerState(event.measurement.power)
-        self.pwr_notifications.metrics.notify(event.measurement.power)
+        state = self.power.state
+
+        state.latest = event.measurement.power
+        state.min = min(event.measurement.power, state.min)
+        state.max = max(event.measurement.power, state.max)
+        state.average = (state.average * state.count + event.measurement.power) // (state.count + 1)
+        state.count += 1
+
+        self.pwr_notifications.metrics.notify(state)

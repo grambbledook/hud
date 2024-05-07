@@ -10,10 +10,18 @@ class ClickableLabel(QLabel):
 
     def __init__(self, normal_icon_path: str, highlighted_icon_path: str, theme: Theme, parent=None):
         super().__init__(parent)
+        self.norm = None
+        self.high = None
+
         self.normal_icon_path = normal_icon_path
         self.highlighted_icon_path = highlighted_icon_path
+
+        self.applyTheme(theme)
+
+    def applyTheme(self, theme: Theme):
         self.norm = self.compute(self.normal_icon_path, theme)
         self.high = self.compute(self.highlighted_icon_path, theme)
+
         self.setPixmap(self.norm)
 
     def enterEvent(self, event):
