@@ -55,18 +55,14 @@ class DevicePanel(QMainWindow):
 
     def applyUiChanges(self):
         self.selectIcon.applyTheme(self.app_config.hud_layout.theme)
-        self.selectIcon.update()
 
         self.metricLabel.setStyleSheet(self.app_config.hud_layout.theme.colour_scheme)
-        self.metricLabel.update()
-
-        self.centralWidget.update()
-        self.layout.update()
+        self.centralWidget.adjustSize()
 
         if self.dialog:
             self.dialog.applyUiChanges()
 
-        self.update()
+        self.adjustSize()
 
     def switchLayout(self):
         if self.app_config.hud_layout.show_buttons:

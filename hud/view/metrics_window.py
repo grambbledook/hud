@@ -82,8 +82,7 @@ class MetricsWindow(DraggableWindow):
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
 
         self.tray_icon = QSystemTrayIcon(self)
-        self.tray_icon.setIcon(QIcon(self.app_config.asset("hrm.png")))  # Set your app icon
-        self.tray_icon_menu = QMenu(self)
+        self.tray_icon.setIcon(QIcon(self.app_config.asset("hrm.png")))
 
         self.switch_theme = QAction("Switch Theme", self)
         self.switch_theme.triggered.connect(self.switchTheme)
@@ -94,6 +93,7 @@ class MetricsWindow(DraggableWindow):
         self.quit_action = QAction("Quit", self)
         self.quit_action.triggered.connect(self.quitApp)
 
+        self.tray_icon_menu = QMenu(self)
         self.tray_icon_menu.addAction(self.switch_theme)
         self.tray_icon_menu.addAction(self.hide_buttons)
         self.tray_icon_menu.addAction(self.quit_action)
@@ -101,14 +101,13 @@ class MetricsWindow(DraggableWindow):
         self.tray_icon.show()
 
     def applyUiChanges(self):
-        self.centralWidget.update()
-        self.layout.update()
 
         self.heart_rate_monitor_panel.applyUiChanges()
         self.cadence_sensor_panel.applyUiChanges()
         self.power_meter_panel.applyUiChanges()
         self.speed_sensor_panel.applyUiChanges()
 
+        self.centralWidget.adjustSize()
         self.adjustSize()
         self.update()
 
