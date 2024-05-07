@@ -1,21 +1,17 @@
-from typing import Protocol
-
 from hud import model
-from hud.model import Device, Model
-from hud.services import BleDiscoveryService, CyclingCadenceAndSpeedService, HrmService, PowerService, DeviceRegistry, \
-    DataManagementService
-
-
-class View(Protocol):
-    def update_view(self, model: Model):
-        ...
+from hud.model.data_classes import Device
+from hud.service.ble.cycling_speed_cadence_service import CyclingCadenceAndSpeedService
+from hud.service.ble.heart_rate_service import HeartRateService
+from hud.service.ble.power_meter_service import PowerService
+from hud.service.ble.scanner import BleDiscoveryService
+from hud.service.data_management_service import DataManagementService
 
 
 class DeviceController:
     def __init__(
             self,
             scan_service: BleDiscoveryService,
-            hr_service: HrmService,
+            hr_service: HeartRateService,
             csc_service: CyclingCadenceAndSpeedService,
             power_service: PowerService,
             config_service: DataManagementService,
@@ -55,7 +51,7 @@ class DeviceController:
         print("Unsubscribing from Power Service...")
         self.power_service.stop()
 
-        print("All services stopped.")
+        print("All service stopped.")
 
     def store(self):
         print("Storing configuration...")

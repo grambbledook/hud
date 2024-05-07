@@ -1,96 +1,10 @@
 from dataclasses import dataclass, field
-from typing import Callable, TypeVar, Generic, Optional
+from typing import Generic, Optional
 
-T = TypeVar('T')
-
-
-@dataclass
-class Feature:
-    uuid: str
-    name: str
-    value: int
-
-
-@dataclass
-class Service:
-    type: str
-    service_uuid: str
-    characteristic_uuid: str
-
-
-HRM = Service(
-    type="Heart Rate Monitor",
-    service_uuid="0000180d-0000-1000-8000-00805f9b34fb",
-    characteristic_uuid="00002a37-0000-1000-8000-00805f9b34fb",
-)
-
-CSC = Service(
-    type="Cadence & Speed Sensor",
-    service_uuid="00001816-0000-1000-8000-00805f9b34fb",
-    characteristic_uuid="00002a5b-0000-1000-8000-00805f9b34fb",
-)
-
-PWR = Service(
-    type="Power Meter",
-    service_uuid="00001818-0000-1000-8000-00805f9b34fb",
-    characteristic_uuid="00002a63-0000-1000-8000-00805f9b34fb",
-)
-
-
-@dataclass
-class Device:
-    name: str
-    address: str
-    service: Service
-
-
-SUPPORTED_SERVICES = [HRM, CSC, PWR]
-
-
-@dataclass
-class HrmMeasurement:
-    hrm: int
-
-
-@dataclass
-class SpeedMeasurement:
-    cwr: int
-    lwet: int
-
-
-@dataclass
-class CadenceMeasurement:
-    ccr: int
-    lcet: int
-
-
-@dataclass
-class PowerMeasurement:
-    power: int
-
-
-@dataclass
-class MeasurementEvent(Generic[T]):
-    device: Device
-    measurement: T
-
-
-class Channel(Generic[T]):
-    def __init__(self):
-        self.listeners: list[Callable[[T], None]] = []
-
-    def notify(self, data: T):
-        for listener in self.listeners:
-            listener(data)
-
-    def subscribe(self, listener: Callable[[T], None]):
-        self.listeners.append(listener)
-
-
-@dataclass
-class Notifications:
-    devices: Channel[str]
-    metrics: Channel[object]
+from hud.coms.channels import Notifications
+from hud.model import T
+from hud.model.data_classes import Device
+from hud.model.events import MeasurementEvent, CadenceMeasurement, SpeedMeasurement, PowerMeasurement, HrMeasurement
 
 
 @dataclass
@@ -157,10 +71,10 @@ class Model:
 
     devices: list[Device] = field(default_factory=list)
 
-    hrm_notifications: Notifications = Notifications(Channel(), Channel())
-    spd_notifications: Notifications = Notifications(Channel(), Channel())
-    cad_notifications: Notifications = Notifications(Channel(), Channel())
-    pwr_notifications: Notifications = Notifications(Channel(), Channel())
+    hrm_notifications: Notifications = Notifications()
+    spd_notifications: Notifications = Notifications()
+    cad_notifications: Notifications = Notifications()
+    pwr_notifications: Notifications = Notifications()
 
     def set_cadence(self, device: Device):
         print("Setting cadence: ", device)
@@ -239,7 +153,7 @@ class Model:
         )
         self.spd_notifications.metrics.notify(round(speed, 1))
 
-    def update_hrm(self, event: MeasurementEvent[HrmMeasurement]):
+    def update_hrm(self, event: MeasurementEvent[HrMeasurement]):
         if event.device != self.hrm.device:
             return
 

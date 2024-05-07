@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from os import path
 from typing import Optional, Tuple
 
 
@@ -7,8 +8,9 @@ class Theme:
     colour_scheme: str
     background_colour: Tuple[int, int, int]
 
+
 @dataclass
-class AppLayout:
+class HudLayout:
     theme: Theme
     show_buttons: bool = True
 
@@ -64,7 +66,11 @@ BRIGHT = Theme(
 @dataclass
 class Config:
     connect_on_start: bool = False
-    app_layout: AppLayout = AppLayout(theme=DARK, show_buttons=True)
+    hud_layout: HudLayout = HudLayout(theme=DARK, show_buttons=True)
     app_dir: str = ""
     config_file: str = "config.yaml"
     log_file: Optional[str] = None
+    assets_directory: str = "assets"
+
+    def asset(self, name: str) -> str:
+        return path.join(self.assets_directory, name)

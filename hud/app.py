@@ -1,14 +1,20 @@
 import asyncio
 import sys
+from os import path
 
 from PySide6.QtCore import QThreadPool
 from qasync import QApplication, QEventLoop
 
-from hud.config import Config
-from hud.controller import DeviceController
-from hud.services import Model, BleDiscoveryService, CyclingCadenceAndSpeedService, HrmService, PowerService, \
-    DeviceRegistry, DataManagementService
-from hud.view import HUDView
+from hud.configuration.config import Config
+from hud.controller.controller import DeviceController
+from hud.model.model import Model
+from hud.service.ble.cycling_speed_cadence_service import CyclingCadenceAndSpeedService
+from hud.service.ble.heart_rate_service import HeartRateService
+from hud.service.ble.power_meter_service import PowerService
+from hud.service.ble.scanner import BleDiscoveryService
+from hud.service.data_management_service import DataManagementService
+from hud.service.device_registry import DeviceRegistry
+from hud.view.hud_window import HUDView
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
@@ -23,11 +29,12 @@ if __name__ == "__main__":
     registry = DeviceRegistry()
 
     discovery_service = BleDiscoveryService(pool, model)
-    hr_service = HrmService(pool, model, registry)
+    hr_service = HeartRateService(pool, model, registry)
     csc_service = CyclingCadenceAndSpeedService(pool, model, registry)
     power_service = PowerService(pool, model, registry)
 
     app_config = Config()
+    app_config.assets_directory = path.join(path.dirname(path.abspath(__file__)), app_config.assets_directory)
 
     config_service = DataManagementService(
         model=model,
