@@ -45,6 +45,9 @@ BRIGHT = Theme(
         QListWidget {
             background-color: transparent;
             color: black;
+            font-weight: bold;
+            font-size: 20px;
+            text-align: center;
         }
         QListWidget::item {
             background-color: transparent;

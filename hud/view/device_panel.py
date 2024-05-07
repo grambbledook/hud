@@ -24,13 +24,8 @@ class DevicePanel(QMainWindow):
     ):
         super().__init__(parent)
         self.app_config = app_config
-        self.metricLabel = None
-        self.selectIcon = None
         self.dialog = None
         self.dialog_refresher = None
-
-        self.layout = None
-        self.centralWidget = None
 
         self.model = model
         self.ble_service_type = ble_service_type
@@ -58,42 +53,36 @@ class DevicePanel(QMainWindow):
         self.centralWidget.setLayout(self.layout)
         self.setCentralWidget(self.centralWidget)
 
-    def createUI(self):
+    def applyUiChanges(self):
         self.selectIcon.applyTheme(self.app_config.hud_layout.theme)
         self.selectIcon.update()
 
         self.metricLabel.setStyleSheet(self.app_config.hud_layout.theme.colour_scheme)
         self.metricLabel.update()
 
-        # Create a QHBoxLayout, add the metricLabel to it, and add it to the main layout
-        self.layout = QGridLayout()
-        self.layout.addWidget(self.selectIcon, 0, 0, 1, 1, Qt.AlignmentFlag.AlignCenter)
-        self.layout.addWidget(self.metricLabel, 1, 0, 1, 1, Qt.AlignmentFlag.AlignCenter)
+        self.centralWidget.update()
+        self.layout.update()
 
-        self.centralWidget = QWidget(self)
-        self.centralWidget.setLayout(self.layout)
-        self.setCentralWidget(self.centralWidget)
+        if self.dialog:
+            self.dialog.applyUiChanges()
 
         self.update()
 
     def switchLayout(self):
         if self.app_config.hud_layout.show_buttons:
-            self.selectIcon.hide()
-        else:
             self.selectIcon.show()
+        else:
+            self.selectIcon.hide()
 
-        self.selectIcon.update()
-
-        self.layout.update()
-        self.adjustSize()
-        self.update()
+        self.applyUiChanges()
 
     def showSelectDeviceDialog(self):
         self.dialog = DeviceDialog(self.app_config, self)
-        self.dialog.createUI()
         self.dialog.selectDeviceSignal.connect(self.deviceSelected)
 
         self.controller.start_scan()
+
+        # This is a workaround to update the device list on the dialog
         self.dialog_refresher = QTimer()
         self.dialog_refresher.timeout.connect(self.updateDeviceListOnDialog)
         self.dialog_refresher.start(400)
@@ -115,10 +104,6 @@ class DevicePanel(QMainWindow):
 
         self.controller.set_device(device)
 
-    def bind_to_model(self, channel):
-        channel.devices.subscribe(self.updateDevice)
-        channel.metrics.subscribe(self.updateMetrics)
-
     def updateDevice(self, value):
         self.selectIcon.setToolTip(str(value))
         self.metricLabel.setToolTip(str(value))
@@ -128,3 +113,7 @@ class DevicePanel(QMainWindow):
 
     def closeEvent(self, event):
         event.accept()
+
+    def bind_to_model(self, channel):
+        channel.devices.subscribe(self.updateDevice)
+        channel.metrics.subscribe(self.updateMetrics)

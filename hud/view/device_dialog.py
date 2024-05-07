@@ -22,7 +22,6 @@ class DeviceDialog(QDialog):
         self.layout = None
         self.hLayout = None
 
-    def createUI(self):
         self.listWidget = QListWidget(self)
         self.listWidget.itemClicked.connect(self.selectItem)
         self.listWidget.itemDoubleClicked.connect(self.confirmSelection)
@@ -47,6 +46,13 @@ class DeviceDialog(QDialog):
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Dialog)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
 
+    def applyUiChanges(self):
+        self.listWidget.setStyleSheet(self.app_config.hud_layout.theme.colour_scheme)
+        self.listWidget.updateGeometries()
+        self.listWidget.updateEditorData()
+
+        self.closeLabel.applyTheme(self.app_config.hud_layout.theme)
+        self.closeLabel.update()
         self.update()
 
     def onLabelClicked(self):
