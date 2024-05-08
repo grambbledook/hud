@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from os import path
 from typing import Optional, Tuple
 
@@ -69,7 +69,7 @@ BRIGHT = Theme(
 @dataclass
 class Config:
     connect_on_start: bool = False
-    hud_layout: HudLayout = HudLayout(theme=DARK, show_buttons=True)
+    hud_layout: HudLayout = field(default_factory=lambda: HudLayout(theme=DARK, show_buttons=True))
     app_dir: str = ""
     config_file: str = "config.yaml"
     log_file: Optional[str] = None

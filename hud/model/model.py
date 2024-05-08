@@ -88,17 +88,17 @@ class Connection(Generic[T]):
 class Model:
     tire_type: str = "700-35C"
 
-    hrm: Connection[HrmState] = Connection(None, HrmState())
-    speed: Connection[SpeedState] = Connection(None, SpeedState())
-    cadence: Connection[CadenceState] = Connection(None, CadenceState())
-    power: Connection[PowerState] = Connection(None, PowerState())
+    hrm: Connection[HrmState] = field(default_factory=lambda: Connection(None, HrmState()))
+    speed: Connection[SpeedState] = field(default_factory=lambda: Connection(None, SpeedState()))
+    cadence: Connection[CadenceState] = field(default_factory=lambda: Connection(None, CadenceState()))
+    power: Connection[PowerState] = field(default_factory=lambda: Connection(None, PowerState()))
 
     devices: list[Device] = field(default_factory=list)
 
-    hrm_notifications: Notifications = Notifications()
-    spd_notifications: Notifications = Notifications()
-    cad_notifications: Notifications = Notifications()
-    pwr_notifications: Notifications = Notifications()
+    hrm_notifications: Notifications = field(default_factory=lambda: Notifications())
+    spd_notifications: Notifications = field(default_factory=lambda: Notifications())
+    cad_notifications: Notifications = field(default_factory=lambda: Notifications())
+    pwr_notifications: Notifications = field(default_factory=lambda: Notifications())
 
     def set_cadence(self, device: Device):
         print("Setting cadence: ", device)
