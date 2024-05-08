@@ -6,17 +6,19 @@ from hud.model import CSC, HRM, PWR
 from hud.model.data_classes import Device
 from hud.model.model import Model
 from hud.service.ble.cycling_speed_cadence_service import CyclingCadenceAndSpeedService
+from hud.service.ble.fec_bike_trainer_service import FecBikeTrainerService
 from hud.service.ble.heart_rate_service import HeartRateService
 from hud.service.ble.power_meter_service import PowerService
 
 
 class DataManagementService:
     def __init__(self, model: Model, hr_service: HeartRateService, csc_service: CyclingCadenceAndSpeedService,
-                 power_service: PowerService):
+                 power_service: PowerService, legacy_bike_trainer_service: FecBikeTrainerService):
         self.model = model
         self.hr_service = hr_service
         self.csc_service = csc_service
         self.power_service = power_service
+        self.legacy_bike_trainer_service = legacy_bike_trainer_service
 
     def store(self):
         # Get the user's home directory

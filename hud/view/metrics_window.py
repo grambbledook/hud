@@ -1,8 +1,8 @@
 from PySide6.QtCore import Signal, Qt
-from PySide6.QtGui import QIcon, QAction, QPainter, QBrush, QColor
-from PySide6.QtWidgets import QSystemTrayIcon, QMenu, QGridLayout, QWidget, QApplication
+from PySide6.QtGui import QPainter, QBrush, QColor
+from PySide6.QtWidgets import QGridLayout, QWidget
 
-from hud.configuration.config import Config, BRIGHT, DARK
+from hud.configuration.config import Config
 from hud.model import HRM, CSC, PWR
 from hud.model.model import Model
 from hud.view import DeviceController
@@ -81,27 +81,7 @@ class MetricsWindow(DraggableWindow):
         self.setWindowFlags(Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.FramelessWindowHint)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
 
-        self.tray_icon = QSystemTrayIcon(self)
-        self.tray_icon.setIcon(QIcon(self.app_config.asset("hrm.png")))
-
-        self.switch_theme = QAction("Switch Theme", self)
-        self.switch_theme.triggered.connect(self.switchTheme)
-
-        self.hide_buttons = QAction("Hide Buttons", self)
-        self.hide_buttons.triggered.connect(self.toggleHideButtons)
-
-        self.quit_action = QAction("Quit", self)
-        self.quit_action.triggered.connect(self.quitApp)
-
-        self.tray_icon_menu = QMenu(self)
-        self.tray_icon_menu.addAction(self.switch_theme)
-        self.tray_icon_menu.addAction(self.hide_buttons)
-        self.tray_icon_menu.addAction(self.quit_action)
-        self.tray_icon.setContextMenu(self.tray_icon_menu)
-        self.tray_icon.show()
-
     def applyUiChanges(self):
-
         self.heart_rate_monitor_panel.applyUiChanges()
         self.cadence_sensor_panel.applyUiChanges()
         self.power_meter_panel.applyUiChanges()
@@ -112,21 +92,9 @@ class MetricsWindow(DraggableWindow):
         self.update()
 
     def switchTheme(self):
-        if self.app_config.hud_layout.theme == BRIGHT:
-            self.app_config.hud_layout.theme = DARK
-        else:
-            self.app_config.hud_layout.theme = BRIGHT
-
         self.applyUiChanges()
 
     def toggleHideButtons(self):
-        self.app_config.hud_layout.show_buttons = not self.app_config.hud_layout.show_buttons
-
-        if self.app_config.hud_layout.show_buttons:
-            self.hide_buttons.setText("Hide Buttons")
-        else:
-            self.hide_buttons.setText("Show Buttons")
-
         self.heart_rate_monitor_panel.switchLayout()
         self.cadence_sensor_panel.switchLayout()
         self.speed_sensor_panel.switchLayout()
@@ -152,7 +120,5 @@ class MetricsWindow(DraggableWindow):
         event.accept()
 
     def quitApp(self):
-        self.tray_icon.hide()
         self.controller.store()
         self.controller.stop()
-        QApplication.quit()

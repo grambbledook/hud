@@ -79,6 +79,15 @@ class PowerState(State[int]):
 
 
 @dataclass
+class BikeTrainer(State[int]):
+    latest: int = 0
+    min: int = 0
+    max: int = 0
+    average: float = 0
+    count: int = 0
+
+
+@dataclass
 class Connection(Generic[T]):
     device: Optional[Device]
     state: T
@@ -92,6 +101,7 @@ class Model:
     speed: Connection[SpeedState] = field(default_factory=lambda: Connection(None, SpeedState()))
     cadence: Connection[CadenceState] = field(default_factory=lambda: Connection(None, CadenceState()))
     power: Connection[PowerState] = field(default_factory=lambda: Connection(None, PowerState()))
+    trainer: Connection[BikeTrainer] = field(default_factory=lambda: Connection(None, BikeTrainer()))
 
     devices: list[Device] = field(default_factory=list)
 
@@ -99,6 +109,7 @@ class Model:
     spd_notifications: Notifications = field(default_factory=lambda: Notifications())
     cad_notifications: Notifications = field(default_factory=lambda: Notifications())
     pwr_notifications: Notifications = field(default_factory=lambda: Notifications())
+    trainer_notifications: Notifications = field(default_factory=lambda: Notifications())
 
     def set_cadence(self, device: Device):
         print("Setting cadence: ", device)
@@ -121,6 +132,11 @@ class Model:
         self.hrm = Connection(device, HrmState())
         self.hrm_notifications.devices.notify(device.name)
         self.hrm_notifications.metrics.notify(self.hrm.state)
+
+    def set_bike_trainer(self, device: Device):
+        self.trainer = Connection(device, BikeTrainer())
+        self.trainer_notifications.devices.notify(device.name)
+        self.trainer_notifications.metrics.notify("Connected to bike trainer")
 
     def update_cadence(self, event: MeasurementEvent[CadenceMeasurement]):
         if event.device != self.cadence.device:

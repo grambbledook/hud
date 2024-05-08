@@ -23,4 +23,10 @@ PWR = Service(
     characteristic_uuid="00002a63-0000-1000-8000-00805f9b34fb",
 )
 
-SUPPORTED_SERVICES = [HRM, CSC, PWR]
+LEGACY_BIKE_TRAINER = Service(
+    type="Bike Trainer (FE-C over Bluetooth)",
+    service_uuid="6e40fec1-b5a3-f393-e0a9-e50e24dcca9e",
+    characteristic_uuid="6e40fec2-b5a3-f393-e0a9-e50e24dcca9e",
+)
+
+SUPPORTED_SERVICES = [HRM, CSC, PWR, LEGACY_BIKE_TRAINER]
