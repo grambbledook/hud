@@ -1,19 +1,17 @@
 from PySide6.QtGui import QIcon, QAction
 from PySide6.QtWidgets import QMenu, QSystemTrayIcon, QApplication
 
-from hud.configuration.config import Config, BRIGHT, DARK
-from hud.view.metrics_window import MetricsWindow
-from hud.view.trainer_window import TrainerWindow
+from hud.configuration.config import Config
+from hud.view.navigator import ViewNavigator
 
 
 class SystemTray(QSystemTrayIcon):
 
-    def __init__(self, metrics_window: MetricsWindow, trainer_window: TrainerWindow, app_config: Config, parent=None):
+    def __init__(self, app_config: Config, view_navigator: ViewNavigator, parent=None):
         super().__init__(parent)
 
         self.app_config = app_config
-        self.metrics_window = metrics_window
-        self.trainer_window = trainer_window
+        self.view_navigator = view_navigator
 
         self.tray_icon = QSystemTrayIcon(self)
         self.tray_icon.setIcon(QIcon(self.app_config.asset("hrm.png")))
@@ -35,27 +33,12 @@ class SystemTray(QSystemTrayIcon):
         self.tray_icon.show()
 
     def switchTheme(self):
-        if self.app_config.hud_layout.theme == BRIGHT:
-            self.app_config.hud_layout.theme = DARK
-        else:
-            self.app_config.hud_layout.theme = BRIGHT
-
-        self.metrics_window.switchTheme()
-        self.trainer_window.switchTheme()
+        self.view_navigator.switch_schema()
 
     def toggleHideButtons(self):
-        self.app_config.hud_layout.show_buttons = not self.app_config.hud_layout.show_buttons
-
-        if self.app_config.hud_layout.show_buttons:
-            self.hide_buttons.setText("Hide Buttons")
-        else:
-            self.hide_buttons.setText("Show Buttons")
-
-        self.metrics_window.toggleHideButtons()
-        self.trainer_window.toggleHideButtons()
+        print("Oops, toggling buttons haven't been implemented yet")
 
     def quitApp(self):
         self.tray_icon.hide()
-        self.metrics_window.quitApp()
-        self.trainer_window.quitApp()
+        self.view_navigator.progress_to_state(9)
         QApplication.quit()

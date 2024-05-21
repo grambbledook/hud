@@ -1,5 +1,7 @@
-from PySide6.QtCore import QPoint, Qt
+from PySide6.QtCore import QPoint, Qt, Signal
 from PySide6.QtWidgets import QMainWindow
+
+from hud.configuration.config import Config
 
 
 class DraggableWindow(QMainWindow):
@@ -22,3 +24,14 @@ class DraggableWindow(QMainWindow):
     def mouseReleaseEvent(self, event):
         self.m_drag = False
         self.update()
+
+
+class AppWindow(DraggableWindow):
+    next = Signal(int)
+    prev = Signal(int)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+
+    def applyUiChanges(self, app_config: Config):
+        pass

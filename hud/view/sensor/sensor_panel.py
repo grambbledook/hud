@@ -8,9 +8,11 @@ from hud.model.model import Model
 from hud.view import DeviceController
 from hud.view.device_dialog import DeviceDialog
 from hud.view.primitives.clickable_label import ClickableLabel
+from hud.view.primitives.theme_switch import with_switchable_theme
 
 
-class DevicePanel(QMainWindow):
+@with_switchable_theme
+class SensorPanel(QMainWindow):
 
     def __init__(
             self,
@@ -52,25 +54,6 @@ class DevicePanel(QMainWindow):
         self.centralWidget = QWidget(self)
         self.centralWidget.setLayout(self.layout)
         self.setCentralWidget(self.centralWidget)
-
-    def applyUiChanges(self):
-        self.selectIcon.applyTheme(self.app_config.hud_layout.theme)
-
-        self.metricLabel.setStyleSheet(self.app_config.hud_layout.theme.colour_scheme)
-        self.centralWidget.adjustSize()
-
-        if self.dialog:
-            self.dialog.applyUiChanges()
-
-        self.adjustSize()
-
-    def switchLayout(self):
-        if self.app_config.hud_layout.show_buttons:
-            self.selectIcon.show()
-        else:
-            self.selectIcon.hide()
-
-        self.applyUiChanges()
 
     def showSelectDeviceDialog(self):
         self.dialog = DeviceDialog(self.app_config, self)

@@ -1,4 +1,4 @@
-from PySide6.QtCore import Signal, Qt
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QPainter, QBrush, QColor
 from PySide6.QtWidgets import QGridLayout, QWidget
 
@@ -6,13 +6,14 @@ from hud.configuration.config import Config
 from hud.model import HRM, CSC, PWR
 from hud.model.model import Model
 from hud.view import DeviceController
-from hud.view.device_panel import DevicePanel
-from hud.view.primitives.draggable_window import DraggableWindow
+from hud.view.primitives.theme_switch import with_switchable_theme
+from hud.view.sensor.sensor_panel import SensorPanel
+from hud.view.primitives.clickable_label import ClickableLabel
+from hud.view.primitives.draggable_window import AppWindow
 
 
-class MetricsWindow(DraggableWindow):
-    shutdown_signal = Signal()
-
+@with_switchable_theme
+class SensorsWindow(AppWindow):
     def __init__(
             self,
             app_config: Config,
@@ -28,7 +29,7 @@ class MetricsWindow(DraggableWindow):
         self.centralWidget = None
         self.app_config = app_config
 
-        self.heart_rate_monitor_panel = DevicePanel(
+        self.heart_rate_monitor_panel = SensorPanel(
             model=model,
             ble_service_type=HRM,
             controller=controller,
@@ -38,7 +39,7 @@ class MetricsWindow(DraggableWindow):
         )
         self.heart_rate_monitor_panel.bind_to_model(model.hrm_notifications)
 
-        self.cadence_sensor_panel = DevicePanel(
+        self.cadence_sensor_panel = SensorPanel(
             model=model,
             ble_service_type=CSC,
             controller=controller,
@@ -48,7 +49,7 @@ class MetricsWindow(DraggableWindow):
         )
         self.cadence_sensor_panel.bind_to_model(model.cad_notifications)
 
-        self.power_meter_panel = DevicePanel(
+        self.power_meter_panel = SensorPanel(
             model=model,
             ble_service_type=PWR,
             controller=controller,
@@ -58,7 +59,7 @@ class MetricsWindow(DraggableWindow):
         )
         self.power_meter_panel.bind_to_model(model.pwr_notifications)
 
-        self.speed_sensor_panel = DevicePanel(
+        self.speed_sensor_panel = SensorPanel(
             model=model,
             ble_service_type=CSC,
             controller=controller,
@@ -67,6 +68,13 @@ class MetricsWindow(DraggableWindow):
             app_config=self.app_config,
         )
         self.speed_sensor_panel.bind_to_model(model.spd_notifications)
+
+        self.confirmLabel = ClickableLabel(
+            normal_icon_path=self.app_config.asset("ok.png"),
+            highlighted_icon_path=self.app_config.asset("ok_high.png"),
+            theme=self.app_config.hud_layout.theme,
+        )
+        self.confirmLabel.clicked.connect(lambda: self.next.emit(4))
 
         self.layout = QGridLayout()
         self.centralWidget = QWidget(self)
@@ -77,47 +85,16 @@ class MetricsWindow(DraggableWindow):
         self.layout.addWidget(self.cadence_sensor_panel, 0, 1)
         self.layout.addWidget(self.power_meter_panel, 1, 0)
         self.layout.addWidget(self.speed_sensor_panel, 1, 1)
+        self.layout.addWidget(self.confirmLabel, 3, 0, 1, 2, Qt.AlignmentFlag.AlignCenter)
 
         self.setWindowFlags(Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.FramelessWindowHint)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
-
-    def applyUiChanges(self):
-        self.heart_rate_monitor_panel.applyUiChanges()
-        self.cadence_sensor_panel.applyUiChanges()
-        self.power_meter_panel.applyUiChanges()
-        self.speed_sensor_panel.applyUiChanges()
-
-        self.centralWidget.adjustSize()
-        self.adjustSize()
-        self.update()
-
-    def switchTheme(self):
-        self.applyUiChanges()
-
-    def toggleHideButtons(self):
-        self.heart_rate_monitor_panel.switchLayout()
-        self.cadence_sensor_panel.switchLayout()
-        self.speed_sensor_panel.switchLayout()
-        self.power_meter_panel.switchLayout()
-
-        self.applyUiChanges()
-
-    def showEvent(self, event):
-        super().showEvent(event)
-
-        if not self.app_config.connect_on_start:
-            return
-        self.controller.load()
 
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setOpacity(0.25)  # Set the opacity
         painter.setBrush(QBrush(QColor(*self.app_config.hud_layout.theme.background_colour)))  # Set the color to black
         painter.drawRect(self.rect())
-
-    def closeEvent(self, event):
-        self.shutdown_signal.emit()
-        event.accept()
 
     def quitApp(self):
         self.controller.store()

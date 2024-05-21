@@ -4,8 +4,10 @@ from PySide6.QtWidgets import QDialog, QListWidget, QHBoxLayout, QVBoxLayout, QL
 
 from hud.configuration.config import Config
 from hud.view.primitives.clickable_label import ClickableLabel
+from hud.view.primitives.theme_switch import with_switchable_theme
 
 
+@with_switchable_theme
 class DeviceDialog(QDialog):
     selectedDevice = None
     selectDeviceSignal = Signal(object)
@@ -45,15 +47,6 @@ class DeviceDialog(QDialog):
 
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.Dialog)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
-
-    def applyUiChanges(self):
-        self.listWidget.setStyleSheet(self.app_config.hud_layout.theme.colour_scheme)
-        self.listWidget.updateGeometries()
-        self.listWidget.updateEditorData()
-
-        self.closeLabel.applyTheme(self.app_config.hud_layout.theme)
-        self.closeLabel.update()
-        self.update()
 
     def onLabelClicked(self):
         self.selectDeviceSignal.emit(self.selectedDevice)

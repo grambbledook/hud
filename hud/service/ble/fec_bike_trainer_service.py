@@ -26,7 +26,7 @@ class FecBikeTrainerService(BaseConnectionService):
             event = self._parse_general_data_page(device, message)
         elif page_type == 17:
             event = self._parse_general_settings_page(device, message)
-        else page_type == 25:
+        elif page_type == 25:
             event = self._parse_specific_trainer_data_page(device, message)
 
     @staticmethod

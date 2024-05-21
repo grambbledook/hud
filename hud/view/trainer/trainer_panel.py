@@ -8,8 +8,11 @@ from hud.model.model import Model
 from hud.view import DeviceController
 from hud.view.device_dialog import DeviceDialog
 from hud.view.primitives.clickable_label import ClickableLabel
+from hud.view.primitives.draggable_window import AppWindow
+from hud.view.primitives.theme_switch import with_switchable_theme
 
 
+@with_switchable_theme
 class TrainerPanel(QMainWindow):
 
     def __init__(
@@ -18,12 +21,13 @@ class TrainerPanel(QMainWindow):
             ble_service_type: Service,
             model: Model,
             app_config: Config,
-            parent=None
+            parent: AppWindow
     ):
         super().__init__(parent)
         self.app_config = app_config
         self.dialog = None
         self.dialog_refresher = None
+        self.parent = parent
 
         self.model = model
         self.ble_service_type = ble_service_type
@@ -37,9 +41,16 @@ class TrainerPanel(QMainWindow):
         self.selectIcon.setToolTip("No device selected")
         self.selectIcon.clicked.connect(self.showSelectDeviceDialog)
 
-        self.settingsLabel = QLabel("100", self)
-        self.settingsLabel.setStyleSheet(self.app_config.hud_layout.theme.colour_scheme)
-        self.settingsLabel.setToolTip("No device selected")
+        self.confirmLabel = ClickableLabel(
+            normal_icon_path=self.app_config.asset("ok.png"),
+            highlighted_icon_path=self.app_config.asset("ok_high.png"),
+            theme=self.app_config.hud_layout.theme,
+        )
+
+        def emit_():
+            parent.next.emit(2)
+
+        self.confirmLabel.clicked.connect(emit_)
 
         self.arrowButtonLeft = ClickableLabel(
             normal_icon_path=self.app_config.asset("left.png"),
@@ -55,33 +66,12 @@ class TrainerPanel(QMainWindow):
         self.layout = QGridLayout()
         self.layout.addWidget(self.selectIcon, 0, 0, 1, 3, Qt.AlignmentFlag.AlignCenter)
         self.layout.addWidget(self.arrowButtonLeft, 1, 0, 1, 1, Qt.AlignmentFlag.AlignCenter)
-        self.layout.addWidget(self.settingsLabel, 1, 1, 1, 1, Qt.AlignmentFlag.AlignCenter)
+        self.layout.addWidget(self.confirmLabel, 1, 1, 1, 1, Qt.AlignmentFlag.AlignCenter)
         self.layout.addWidget(self.arrowButtonRight, 1, 2, 1, 1, Qt.AlignmentFlag.AlignCenter)
 
         self.centralWidget = QWidget(self)
         self.centralWidget.setLayout(self.layout)
         self.setCentralWidget(self.centralWidget)
-
-    def applyUiChanges(self):
-        self.selectIcon.applyTheme(self.app_config.hud_layout.theme)
-
-        self.settingsLabel.setStyleSheet(self.app_config.hud_layout.theme.colour_scheme)
-        self.arrowButtonLeft.applyTheme(self.app_config.hud_layout.theme)
-        self.arrowButtonRight.applyTheme(self.app_config.hud_layout.theme)
-        self.centralWidget.adjustSize()
-
-        if self.dialog:
-            self.dialog.applyUiChanges()
-
-        self.adjustSize()
-
-    def switchLayout(self):
-        if self.app_config.hud_layout.show_buttons:
-            self.selectIcon.show()
-        else:
-            self.selectIcon.hide()
-
-        self.applyUiChanges()
 
     def showSelectDeviceDialog(self):
         self.dialog = DeviceDialog(self.app_config, self)
@@ -113,10 +103,10 @@ class TrainerPanel(QMainWindow):
 
     def updateDevice(self, value):
         self.selectIcon.setToolTip(str(value))
-        self.settingsLabel.setToolTip(str(value))
+        self.confirmLabel.setToolTip(str(value))
 
     def updateMetrics(self, value):
-        self.settingsLabel.setText(str(value.latest))
+        self.confirmLabel.setText(str(value.latest))
 
     def closeEvent(self, event):
         event.accept()
