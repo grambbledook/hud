@@ -34,11 +34,12 @@ if __name__ == "__main__":
     model = Model()
     registry = DeviceRegistry()
 
-    discovery_service = BleDiscoveryService(pool, model)
-    hr_service = HeartRateService(pool, model, registry)
-    csc_service = CyclingCadenceAndSpeedService(pool, model, registry)
-    power_service = PowerService(pool, model, registry)
-    legacy_bike_trainer_service = FecBikeTrainerService(pool, model, registry)
+    mock_mode = True
+    discovery_service = BleDiscoveryService(pool, model, mock_mode=mock_mode)
+    hr_service = HeartRateService(pool, model, registry, mock_mode=mock_mode)
+    csc_service = CyclingCadenceAndSpeedService(pool, model, registry, mock_mode=mock_mode)
+    power_service = PowerService(pool, model, registry, mock_mode=mock_mode)
+    legacy_bike_trainer_service = FecBikeTrainerService(pool, model, registry, mock_mode=mock_mode)
 
     app_config = Config()
     app_config.assets_directory = path.join(path.dirname(path.abspath(__file__)), app_config.assets_directory)

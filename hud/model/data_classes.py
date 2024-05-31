@@ -19,4 +19,4 @@ class Service:
 class Device:
     name: str
     address: str
-    service: Service
+    supported_services: list[Service]

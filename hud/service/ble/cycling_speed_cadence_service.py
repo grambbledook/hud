@@ -11,8 +11,8 @@ from hud.service.device_registry import DeviceRegistry
 class CyclingCadenceAndSpeedService(BaseConnectionService):
     CSC_FEATURE_UUID = "00002a5c-0000-1000-8000-00805f9b34fb"
 
-    def __init__(self, pool: QThreadPool, model: Model, registry: DeviceRegistry):
-        super().__init__(pool, model, registry)
+    def __init__(self, pool: QThreadPool, model: Model, registry: DeviceRegistry, mock_mode: bool = False):
+        super().__init__(pool, model, registry, mock_mode)
 
     async def process_supported_features(self, client: BleakClient, device: Device):
         supported_services = await self.parse_csc_feature(client)

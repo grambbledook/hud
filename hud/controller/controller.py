@@ -33,17 +33,18 @@ class DeviceController:
     def set_device(self, device: Device):
         print(f"Device found: {device}")
 
-        match device.service:
-            case model.HRM:
-                self.hrm_service.set_device(device)
-            case model.CSC:
-                self.csc_service.set_device(device)
-            case model.PWR:
-                self.power_service.set_device(device)
-            case model.LEGACY_BIKE_TRAINER:
-                self.legacy_bike_trainer_service.set_device(device)
-            case _:
-                print(f"Unknown: {device}")
+        for service in device.supported_services:
+            match service:
+                case model.HRM:
+                    self.hrm_service.set_device(device)
+                case model.CSC:
+                    self.csc_service.set_device(device)
+                case model.PWR:
+                    self.power_service.set_device(device)
+                case model.LEGACY_BIKE_TRAINER:
+                    self.legacy_bike_trainer_service.set_device(device)
+                case _:
+                    print(f"Unknown: {device}")
 
     def stop(self):
         print("Closing connections to Devices...")

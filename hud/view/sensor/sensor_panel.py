@@ -7,7 +7,7 @@ from hud.model.data_classes import Device
 from hud.model.model import Model
 from hud.view import DeviceController
 from hud.view.device_dialog import DeviceDialog
-from hud.view.primitives.clickable_label import ClickableLabel
+from hud.view.primitives.clickable_label import ClickableLabel, LabelType
 from hud.view.primitives.theme_switch import with_switchable_theme
 
 
@@ -39,6 +39,7 @@ class SensorPanel(QMainWindow):
             normal_icon_path=self.normal_icon_path,
             highlighted_icon_path=self.highlighted_icon_path,
             theme=self.app_config.hud_layout.theme,
+            label_size=LabelType.CLICKABLE_LABEL,
         )
         self.selectIcon.setToolTip("No device selected")
         self.selectIcon.clicked.connect(self.showSelectDeviceDialog)

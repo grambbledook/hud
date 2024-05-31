@@ -1,11 +1,19 @@
+import enum
+
 from PySide6.QtCore import Signal
-from PySide6.QtGui import QPixmap, QColor
+from PySide6.QtGui import QPixmap, QColor, Qt
 from PySide6.QtWidgets import QLabel
 
 from hud.configuration.config import Theme
 
 
-def compute_pixmap(icon_path, theme) -> QPixmap:
+class LabelType(enum.EnumType):
+    BUTTON = 28
+    CLICKABLE_LABEL = 64
+    LABEL = 64
+
+
+def compute_pixmap(icon_path, label_type, theme) -> QPixmap:
     pixmap = QPixmap(icon_path)
     image = pixmap.toImage()
 
@@ -18,7 +26,9 @@ def compute_pixmap(icon_path, theme) -> QPixmap:
             r, g, b = theme.background_colour
             color.setRgb(r ^ 0xFF, g ^ 0xFF, b ^ 0xFF)
             image.setPixel(x, y, color.rgba())
-    return QPixmap.fromImage(image)
+
+    pixmap = QPixmap.fromImage(image)
+    return pixmap.scaledToHeight(label_type, mode=Qt.TransformationMode.SmoothTransformation)
 
 
 class Label(QLabel):
@@ -32,7 +42,7 @@ class Label(QLabel):
         self.applyTheme(theme)
 
     def applyTheme(self, theme: Theme):
-        self.norm = compute_pixmap(self.icon_path, theme)
+        self.norm = compute_pixmap(self.icon_path, LabelType.LABEL, theme)
 
         self.setPixmap(self.norm)
 
@@ -40,19 +50,22 @@ class Label(QLabel):
 class ClickableLabel(QLabel):
     clicked = Signal()
 
-    def __init__(self, normal_icon_path: str, highlighted_icon_path: str, theme: Theme, parent=None):
+    def __init__(self, normal_icon_path: str, highlighted_icon_path: str, theme: Theme,
+                 label_size: LabelType = LabelType.BUTTON,
+                 parent=None):
         super().__init__(parent)
         self.norm = None
         self.high = None
 
+        self.label_type = label_size
         self.normal_icon_path = normal_icon_path
         self.highlighted_icon_path = highlighted_icon_path
 
         self.applyTheme(theme)
 
     def applyTheme(self, theme: Theme):
-        self.norm = compute_pixmap(self.normal_icon_path, theme)
-        self.high = compute_pixmap(self.highlighted_icon_path, theme)
+        self.norm = compute_pixmap(self.normal_icon_path, self.label_type, theme)
+        self.high = compute_pixmap(self.highlighted_icon_path, self.label_type, theme)
 
         self.setPixmap(self.norm)
 

@@ -1,5 +1,6 @@
 import abc
 import asyncio
+import random
 from typing import Callable, TypeVar, AsyncGenerator, Tuple, Coroutine
 
 from PySide6.QtCore import QRunnable, QThreadPool
@@ -116,11 +117,12 @@ class MeasurementReadingTask(QRunnable):
 
 
 class BaseConnectionService(abc.ABC):
-    def __init__(self, pool: QThreadPool, model: Model, registry: DeviceRegistry):
+    def __init__(self, pool: QThreadPool, model: Model, registry: DeviceRegistry, mock_mode: bool = False):
         self.pool = pool
         self.model = model
         self.registry = registry
         self.tasks = []
+        self.mock_mode = mock_mode
 
     def set_device(self, device: Device):
         task = MeasurementReadingTask(

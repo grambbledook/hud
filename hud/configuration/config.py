@@ -7,6 +7,7 @@ from typing import Optional, Tuple
 class Theme:
     colour_scheme: str
     background_colour: Tuple[int, int, int]
+    button_height: int = 28
 
 
 @dataclass

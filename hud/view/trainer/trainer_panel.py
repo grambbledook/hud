@@ -87,7 +87,9 @@ class TrainerPanel(QMainWindow):
 
     def updateDeviceListOnDialog(self):
         for device in self.model.devices:
-            if self.ble_service_type.service_uuid != device.service.service_uuid:
+            supported_services = {service.service_uuid for service in device.supported_services}
+
+            if self.ble_service_type.service_uuid not in supported_services:
                 continue
             self.dialog.showDevice(device)
 

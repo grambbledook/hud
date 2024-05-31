@@ -8,8 +8,8 @@ from hud.service.device_registry import DeviceRegistry
 
 
 class PowerService(BaseConnectionService):
-    def __init__(self, pool: QThreadPool, model: Model, registry: DeviceRegistry):
-        super().__init__(pool, model, registry)
+    def __init__(self, pool: QThreadPool, model: Model, registry: DeviceRegistry, mock_mode: bool = False):
+        super().__init__(pool, model, registry, mock_mode)
 
     async def process_supported_features(self, _, device: Device):
         self.model.set_power(device)
