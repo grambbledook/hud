@@ -20,3 +20,7 @@ class Device:
     name: str
     address: str
     supported_services: list[Service]
+
+    @property
+    def device_id(self):
+        return f"{self.name}:{self.address}"

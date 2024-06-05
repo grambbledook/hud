@@ -1,20 +1,22 @@
 from PySide6.QtCore import QThreadPool
 from bleak import BleakClient
 
+from hud.model import CSC
 from hud.model.data_classes import Device
 from hud.model.events import SpeedMeasurement, CadenceMeasurement, MeasurementEvent
 from hud.model.model import Model
 from hud.service.ble.base_ble_connection_service import BaseConnectionService
+from hud.service.ble.ble_client import BleClient
 from hud.service.device_registry import DeviceRegistry
 
 
 class CyclingCadenceAndSpeedService(BaseConnectionService):
     CSC_FEATURE_UUID = "00002a5c-0000-1000-8000-00805f9b34fb"
 
-    def __init__(self, pool: QThreadPool, model: Model, registry: DeviceRegistry, mock_mode: bool = False):
-        super().__init__(pool, model, registry, mock_mode)
+    def __init__(self, model: Model, registry: DeviceRegistry):
+        super().__init__(model, registry, service=CSC)
 
-    async def process_supported_features(self, client: BleakClient, device: Device):
+    async def process_feature_and_set_devices(self, client: BleClient, device: Device):
         supported_services = await self.parse_csc_feature(client)
 
         for supported_service in supported_services:
@@ -26,7 +28,7 @@ class CyclingCadenceAndSpeedService(BaseConnectionService):
                 case _:
                     print(f"Unknown service: {supported_service}")
 
-    async def parse_csc_feature(self, client: BleakClient) -> list[str]:
+    async def parse_csc_feature(self, client: BleClient) -> list[str]:
         if not client.is_connected:
             await client.connect()
 

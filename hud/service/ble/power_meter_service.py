@@ -1,5 +1,6 @@
 from PySide6.QtCore import QThreadPool
 
+from hud.model import PWR
 from hud.model.data_classes import Device
 from hud.model.events import PowerMeasurement, MeasurementEvent
 from hud.model.model import Model
@@ -8,10 +9,10 @@ from hud.service.device_registry import DeviceRegistry
 
 
 class PowerService(BaseConnectionService):
-    def __init__(self, pool: QThreadPool, model: Model, registry: DeviceRegistry, mock_mode: bool = False):
-        super().__init__(pool, model, registry, mock_mode)
+    def __init__(self, model: Model, registry: DeviceRegistry):
+        super().__init__(model, registry, service=PWR)
 
-    async def process_supported_features(self, _, device: Device):
+    async def process_feature_and_set_devices(self, _, device: Device):
         self.model.set_power(device)
 
     def process_measurement(self, device: Device, data: bytearray):

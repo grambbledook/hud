@@ -63,7 +63,7 @@ class SelectDevicePanel(QMainWindow):
         self.dialog.selectDeviceSignal.connect(self.deviceSelected)
         self.populate_device_list(self.model.find_devices(self.ble_service_type))
 
-        asyncio.ensure_future(self.controller.start_scan())
+        asyncio.ensure_future(self.controller.start_device_scan())
         asyncio.ensure_future(self.dialog.show_async())
 
     def populate_device_list(self, devices: Union[Device, list[Device]]):
@@ -77,18 +77,20 @@ class SelectDevicePanel(QMainWindow):
 
     def deviceSelected(self, device: Device):
         self.dialog = None
+        self.controller.stop_device_scan()
 
         if device is None:
             return
 
-        self.controller.set_device(device)
+        asyncio.ensure_future(self.controller.set_device(device))
 
     def updateDevice(self, value):
         self.selectIcon.setToolTip(str(value))
         self.metricLabel.setToolTip(str(value))
 
     def updateMetrics(self, value):
-        self.metricLabel.setText(str(value.latest))
+        data = str(value.latest) if hasattr(value, "latest") else "ok"
+        self.metricLabel.setText(data)
 
     def closeEvent(self, event):
         event.accept()

@@ -29,24 +29,33 @@ class DeviceController:
         self.config_service = config_service
         self.legacy_bike_trainer_service = legacy_bike_trainer_service
 
-    async def start_scan(self):
+    async def start_device_scan(self):
         await self.scan_service.start_scan()
 
-    def set_device(self, device: Device):
-        print(f"Device found: {device}")
+    def stop_device_scan(self):
+        self.scan_service.stop_scan()
 
-        for service in device.supported_services:
-            match service:
-                case model.HRM:
-                    self.hrm_service.set_device(device)
-                case model.CSC:
-                    self.csc_service.set_device(device)
-                case model.PWR:
-                    self.power_service.set_device(device)
-                case model.LEGACY_BIKE_TRAINER:
-                    self.legacy_bike_trainer_service.set_device(device)
-                case _:
-                    print(f"Unknown: {device}")
+    async def set_device(self, device: Device):
+        print(f"Device found: {device}")
+        tasks = [x for service in device.supported_services for x in [self.set_service(device, service)] if
+                 service is not None]
+        try:
+            await asyncio.gather(*tasks)
+        except Exception as e:
+            print(f"Error connecting to service: [{e}] of device[{device.device_id}]", e)
+
+    def set_service(self, device, service):
+        match service:
+            case model.HRM:
+                return self.hrm_service.set_device(device)
+            case model.CSC:
+                return self.csc_service.set_device(device)
+            case model.PWR:
+                return self.power_service.set_device(device)
+            case model.LEGACY_BIKE_TRAINER:
+                return self.legacy_bike_trainer_service.set_device(device)
+            case _:
+                print(f"Unknown: {device}")
 
     def stop(self):
         print("Closing connections to Devices...")

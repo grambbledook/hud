@@ -127,31 +127,39 @@ class Model:
         return [device for device in self.devices.values() if service in device.supported_services]
 
     def set_cadence(self, device: Device):
-        print("Setting cadence: ", device)
+        print("Setting cadence sensor: ", device)
         self.cadence = Connection(device, CadenceState())
         self.cad_notifications.device_selected.notify(device.name)
         self.cad_notifications.metrics.notify(self.cadence.state)
+        print("Cadence sensor set: ", self.cadence)
 
     def set_speed(self, device: Device):
-        print("Setting speed: ", device)
+        print("Setting speed sensor: ", device)
         self.speed = Connection(device, SpeedState())
         self.spd_notifications.device_selected.notify(device.name)
         self.spd_notifications.metrics.notify(self.speed.state)
+        print("Speed sensor set: ", self.speed)
 
     def set_power(self, device: Device):
+        print("Setting power meter: ", device)
         self.power = Connection(device, PowerState())
         self.pwr_notifications.device_selected.notify(device.name)
         self.pwr_notifications.metrics.notify(self.power.state)
+        print("Power meter set: ", self.power)
 
     def set_hrm(self, device: Device):
+        print("Setting Heart Rate monitor: ", device)
         self.hrm = Connection(device, HrmState())
         self.hrm_notifications.device_selected.notify(device.name)
         self.hrm_notifications.metrics.notify(self.hrm.state)
+        print("Heart Rate monitor set: ", self.hrm)
 
     def set_bike_trainer(self, device: Device):
+        print("Setting Bike Trainer: ", device)
         self.trainer = Connection(device, BikeTrainer())
         self.trainer_notifications.device_selected.notify(device.name)
         self.trainer_notifications.metrics.notify("Connected to bike trainer")
+        print("Bike Trainer set: ", self.trainer)
 
     def update_cadence(self, event: MeasurementEvent[CadenceMeasurement]):
         if event.device != self.cadence.device:

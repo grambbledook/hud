@@ -5,10 +5,13 @@ from hud.model.data_classes import Device
 
 class DeviceController(Protocol):
 
-    async def start_scan(self):
+    async def start_device_scan(self):
         ...
 
-    def set_device(self, device: Device):
+    def stop_device_scan(self):
+        ...
+
+    async def set_device(self, device: Device):
         ...
 
     def stop(self):

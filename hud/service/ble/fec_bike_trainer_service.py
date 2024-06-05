@@ -1,6 +1,7 @@
 from PySide6.QtCore import QThreadPool
 from bleak import BleakClient
 
+from hud.model import LEGACY_BIKE_TRAINER
 from hud.model.data_classes import Device
 from hud.model.model import Model
 from hud.service.ble.base_ble_connection_service import BaseConnectionService
@@ -9,25 +10,26 @@ from hud.service.device_registry import DeviceRegistry
 
 class FecBikeTrainerService(BaseConnectionService):
 
-    def __init__(self, pool: QThreadPool, model: Model, registry: DeviceRegistry, mock_mode: bool = False):
-        super().__init__(pool, model, registry, mock_mode)
+    def __init__(self, model: Model, registry: DeviceRegistry):
+        super().__init__(model, registry, service=LEGACY_BIKE_TRAINER)
 
-    async def process_supported_features(self, client: BleakClient, device: Device):
+    async def process_feature_and_set_devices(self, client: BleakClient, device: Device):
         self.model.set_bike_trainer(device)
 
     def process_measurement(self, device: Device, data: bytearray):
-        print(f"Received data from {device}: {data}")
+        # print(f"Received data from {device}: {data}")
+        pass
 
-        payload_size = data[1]
-        message = data[4:4 + payload_size - 1]
-        page_type = message[0]
-
-        if page_type == 16:
-            event = self._parse_general_data_page(device, message)
-        elif page_type == 17:
-            event = self._parse_general_settings_page(device, message)
-        elif page_type == 25:
-            event = self._parse_specific_trainer_data_page(device, message)
+        # payload_size = data[1]
+        # message = data[4:4 + payload_size - 1]
+        # page_type = message[0]
+        #
+        # if page_type == 16:
+        #     event = self._parse_general_data_page(device, message)
+        # elif page_type == 17:
+        #     event = self._parse_general_settings_page(device, message)
+        # elif page_type == 25:
+        #     event = self._parse_specific_trainer_data_page(device, message)
 
     @staticmethod
     def _parse_general_data_page(device: Device, message: bytearray):

@@ -1,34 +1,34 @@
-import asyncio
 from typing import Callable
 
-from PySide6.QtCore import QRunnable, QThreadPool
 from bleak import BleakScanner
 
-from hud.model import Service, SUPPORTED_SERVICES
+from hud.model import Service
 from hud.model.data_classes import Device
 from hud.model.model import Model
+from hud.service.ble.base_ble_connection_service import InterruptableTask
 
 
-class ScanTask(QRunnable):
-
-    def __init__(self, services: list[Service], publish_device: Callable[[Device], None], *args, **kwargs):
+class ScanTask(InterruptableTask):
+    def __init__(self, services: list[Service], discover_device: Callable[[Device], None]):
         super().__init__()
+        self.scanner = BleakScanner()
         self.services = services
-        self.publish_device = publish_device
+        self.discover_device = discover_device
 
-    def run(self):
-        asyncio.run(self.scan())
+    async def execute(self):
+        for i in range(5):
+            if self._interrupted:
+                break
 
-    async def scan(self):
-        scanner = BleakScanner()
+            print(f"Start scanning. Pass {i + 1}... ")
+            total, supported = await self._do_scan(self.services)
+            print(f"Scanning finished. Total devices: {total}. Supported devices: {supported}.")
 
-        for _ in range(5):
-            await self._do_scan(scanner)
+    async def _do_scan(self, services: list[Service]):
+        candidate_services = dict(map(lambda s: (s.service_uuid, s), services))
+        address_to_device_and_advertisement_data = await self.scanner.discover(return_adv=True)
 
-    async def _do_scan(self, scanner: BleakScanner):
-        candidate_services = dict(map(lambda s: (s.service_uuid, s), self.services))
-        address_to_device_and_advertisement_data = await scanner.discover(return_adv=True)
-
+        supported_devices = 0
         for device, advertisement_data in address_to_device_and_advertisement_data.values():
 
             services = set(candidate_services) & set(advertisement_data.service_uuids)
@@ -37,60 +37,30 @@ class ScanTask(QRunnable):
 
             supported_services = [candidate_services[service_uuid] for service_uuid in services]
             device = Device(device.name, device.address, supported_services=supported_services)
+            print(f"Candidate device: {device.device_id}")
+            self.discover_device(device)
+            supported_devices += 1
 
-            self.publish_device(device)
-
-
-class MockScanTask(QRunnable):
-
-    def __init__(self, services: list[Service], publish_device: Callable[[Device], None], *args, **kwargs):
-        super().__init__()
-        self.services = services
-        self.publish_device = publish_device
-
-    def run(self):
-        asyncio.run(self.scan())
-
-    async def scan(self):
-        await self._do_scan()
-
-    async def _do_scan(self):
-        await asyncio.sleep(1)
-        device = Device("Mock device", "0:0:0:0:0:0", supported_services=list(self.services))
-        self.publish_device(device)
+        return len(address_to_device_and_advertisement_data), supported_devices
 
 
 class BleDiscoveryService:
 
-    def __init__(self, services: list[Service], model: Model, mock_mode: bool = False):
-        self.services = services
-        self.model = model
-        self.is_mock_mode = mock_mode
+    def __init__(self, services: list[Service], model: Model):
+        self.tasks: list[ScanTask] = []
+        self.services: list[Service] = services
+        self.model: Model = model
 
     async def start_scan(self):
-        await self.scan()
+        self.stop_scan()
 
-    async def scan(self):
-        scanner = BleakScanner()
+        task = ScanTask(discover_device=self.append_device, services=self.services)
+        self.tasks.append(task)
+        await task.execute()
 
-        for _ in range(5):
-            await self._do_scan(scanner)
-
-    async def _do_scan(self, scanner: BleakScanner):
-        candidate_services = dict(map(lambda s: (s.service_uuid, s), self.services))
-        print("Start scanning...")
-        address_to_device_and_advertisement_data = await scanner.discover(return_adv=True)
-        print("Scanning done. Total devices found: ", len(address_to_device_and_advertisement_data))
-        for device, advertisement_data in address_to_device_and_advertisement_data.values():
-
-            services = set(candidate_services) & set(advertisement_data.service_uuids)
-            if not services:
-                continue
-
-            supported_services = [candidate_services[service_uuid] for service_uuid in services]
-            device = Device(device.name, device.address, supported_services=supported_services)
-
-            self.append_device(device)
+    def stop_scan(self):
+        for task in self.tasks:
+            task.interrupt()
 
     def append_device(self, device: Device):
         if device.address in self.model.devices:
