@@ -2,6 +2,7 @@ from dataclasses import dataclass, field
 from typing import Generic, Callable
 
 from hud.coms import T
+from hud.model.data_classes import Device
 
 
 class Channel(Generic[T]):
@@ -18,5 +19,6 @@ class Channel(Generic[T]):
 
 @dataclass
 class Notifications(Generic[T]):
-    devices: Channel[str] = field(default_factory=Channel[str])
     metrics: Channel[T] = field(default_factory=Channel[T])
+    device_selected: Channel[str] = field(default_factory=Channel[str])
+    device_discovered: Channel[Device] = field(default_factory=Channel[Device])

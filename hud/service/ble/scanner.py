@@ -62,18 +62,38 @@ class MockScanTask(QRunnable):
 
 class BleDiscoveryService:
 
-    def __init__(self, pool: QThreadPool, model: Model, mock_mode: bool = False):
-        self.pool = pool
+    def __init__(self, services: list[Service], model: Model, mock_mode: bool = False):
+        self.services = services
         self.model = model
         self.is_mock_mode = mock_mode
 
-    def start_scan(self):
-        task = ScanTask(SUPPORTED_SERVICES, self._append_device)
+    async def start_scan(self):
+        await self.scan()
 
-        self.pool.start(task)
+    async def scan(self):
+        scanner = BleakScanner()
 
-    def _append_device(self, device: Device):
-        if device in self.model.devices:
+        for _ in range(5):
+            await self._do_scan(scanner)
+
+    async def _do_scan(self, scanner: BleakScanner):
+        candidate_services = dict(map(lambda s: (s.service_uuid, s), self.services))
+        print("Start scanning...")
+        address_to_device_and_advertisement_data = await scanner.discover(return_adv=True)
+        print("Scanning done. Total devices found: ", len(address_to_device_and_advertisement_data))
+        for device, advertisement_data in address_to_device_and_advertisement_data.values():
+
+            services = set(candidate_services) & set(advertisement_data.service_uuids)
+            if not services:
+                continue
+
+            supported_services = [candidate_services[service_uuid] for service_uuid in services]
+            device = Device(device.name, device.address, supported_services=supported_services)
+
+            self.append_device(device)
+
+    def append_device(self, device: Device):
+        if device.address in self.model.devices:
             return
 
-        self.model.devices.append(device)
+        self.model.add_device(device)

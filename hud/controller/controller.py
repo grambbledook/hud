@@ -1,3 +1,5 @@
+import asyncio
+
 from hud import model
 from hud.model.data_classes import Device
 from hud.service.ble.cycling_speed_cadence_service import CyclingCadenceAndSpeedService
@@ -27,8 +29,8 @@ class DeviceController:
         self.config_service = config_service
         self.legacy_bike_trainer_service = legacy_bike_trainer_service
 
-    def start_scan(self):
-        self.scan_service.start_scan()
+    async def start_scan(self):
+        await self.scan_service.start_scan()
 
     def set_device(self, device: Device):
         print(f"Device found: {device}")

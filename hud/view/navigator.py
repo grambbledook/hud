@@ -3,9 +3,9 @@ import sys
 from typing import Optional
 
 from hud.configuration.config import Config, BRIGHT, DARK
-from hud.view.sensor.sensor_window import SensorsWindow
+from hud.view.device.sensor_window import SensorsWindow
 from hud.view.primitives.draggable_window import DraggableWindow
-from hud.view.trainer.trainer_window import TrainerWindow
+from hud.view.device.trainer_window import TrainerWindow
 from hud.view.workout.workout_window import WorkoutWindow
 from hud.view.workout_statistics.workout_statistics_window import WorkoutStatisticsWindow
 
@@ -66,8 +66,10 @@ class ViewNavigator:
                 new_window = self.active_window = self.trainer_choice_window
             case AppState.WAITING_FOR_SENSORS:
                 new_window = self.active_window = self.additional_sensors_window
+                sys.exit(0)
             case AppState.WAITING_FOR_WORKOUT:
                 new_window = self.active_window = self.select_workout_window
+                sys.exit(0)
             case AppState.IN_WORKOUT:
                 new_window = self.active_window = self.workout_window
             case AppState.WORKOUT_FINISHED:

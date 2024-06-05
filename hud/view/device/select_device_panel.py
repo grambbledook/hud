@@ -1,4 +1,7 @@
-from PySide6.QtCore import Qt, QTimer
+import asyncio
+from typing import Optional, Union
+
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QMainWindow, QLabel, QGridLayout, QWidget
 
 from hud.configuration.config import Config
@@ -12,7 +15,7 @@ from hud.view.primitives.theme_switch import with_switchable_theme
 
 
 @with_switchable_theme
-class SensorPanel(QMainWindow):
+class SelectDevicePanel(QMainWindow):
 
     def __init__(
             self,
@@ -27,7 +30,6 @@ class SensorPanel(QMainWindow):
         super().__init__(parent)
         self.app_config = app_config
         self.dialog = None
-        self.dialog_refresher = None
 
         self.model = model
         self.ble_service_type = ble_service_type
@@ -42,7 +44,7 @@ class SensorPanel(QMainWindow):
             label_size=LabelType.CLICKABLE_LABEL,
         )
         self.selectIcon.setToolTip("No device selected")
-        self.selectIcon.clicked.connect(self.showSelectDeviceDialog)
+        self.selectIcon.clicked.connect(lambda: asyncio.ensure_future(self.showSelectDeviceDialog()))
 
         self.metricLabel = QLabel("--/--", self)
         self.metricLabel.setStyleSheet(self.app_config.hud_layout.theme.colour_scheme)
@@ -56,27 +58,24 @@ class SensorPanel(QMainWindow):
         self.centralWidget.setLayout(self.layout)
         self.setCentralWidget(self.centralWidget)
 
-    def showSelectDeviceDialog(self):
+    async def showSelectDeviceDialog(self):
         self.dialog = DeviceDialog(self.app_config, self)
         self.dialog.selectDeviceSignal.connect(self.deviceSelected)
+        self.populate_device_list(self.model.find_devices(self.ble_service_type))
 
-        self.controller.start_scan()
+        asyncio.ensure_future(self.controller.start_scan())
+        asyncio.ensure_future(self.dialog.show_async())
 
-        # This is a workaround to update the device list on the dialog
-        self.dialog_refresher = QTimer()
-        self.dialog_refresher.timeout.connect(self.updateDeviceListOnDialog)
-        self.dialog_refresher.start(400)
-        self.dialog.exec()
+    def populate_device_list(self, devices: Union[Device, list[Device]]):
+        if not self.dialog:
+            return
 
-    def updateDeviceListOnDialog(self):
-        for device in self.model.devices:
-            if self.ble_service_type.service_uuid != device.service.service_uuid:
-                continue
+        data = [devices] if isinstance(devices, Device) else devices
+
+        for device in data:
             self.dialog.showDevice(device)
 
     def deviceSelected(self, device: Device):
-        if self.dialog_refresher:
-            self.dialog_refresher.stop()
         self.dialog = None
 
         if device is None:
@@ -95,5 +94,6 @@ class SensorPanel(QMainWindow):
         event.accept()
 
     def bind_to_model(self, channel):
-        channel.devices.subscribe(self.updateDevice)
+        channel.device_selected.subscribe(self.updateDevice)
         channel.metrics.subscribe(self.updateMetrics)
+        channel.device_discovered.subscribe(self.populate_device_list)

@@ -7,7 +7,7 @@ from hud.model import HRM, CSC, PWR
 from hud.model.model import Model
 from hud.view import DeviceController
 from hud.view.primitives.theme_switch import with_switchable_theme
-from hud.view.sensor.sensor_panel import SensorPanel
+from hud.view.device.select_device_panel import SelectDevicePanel
 from hud.view.primitives.clickable_label import ClickableLabel
 from hud.view.primitives.draggable_window import AppWindow
 
@@ -29,7 +29,7 @@ class SensorsWindow(AppWindow):
         self.centralWidget = None
         self.app_config = app_config
 
-        self.heart_rate_monitor_panel = SensorPanel(
+        self.heart_rate_monitor_panel = SelectDevicePanel(
             model=model,
             ble_service_type=HRM,
             controller=controller,
@@ -39,7 +39,7 @@ class SensorsWindow(AppWindow):
         )
         self.heart_rate_monitor_panel.bind_to_model(model.hrm_notifications)
 
-        self.cadence_sensor_panel = SensorPanel(
+        self.cadence_sensor_panel = SelectDevicePanel(
             model=model,
             ble_service_type=CSC,
             controller=controller,
@@ -49,7 +49,7 @@ class SensorsWindow(AppWindow):
         )
         self.cadence_sensor_panel.bind_to_model(model.cad_notifications)
 
-        self.power_meter_panel = SensorPanel(
+        self.power_meter_panel = SelectDevicePanel(
             model=model,
             ble_service_type=PWR,
             controller=controller,
@@ -59,7 +59,7 @@ class SensorsWindow(AppWindow):
         )
         self.power_meter_panel.bind_to_model(model.pwr_notifications)
 
-        self.speed_sensor_panel = SensorPanel(
+        self.speed_sensor_panel = SelectDevicePanel(
             model=model,
             ble_service_type=CSC,
             controller=controller,
@@ -95,7 +95,3 @@ class SensorsWindow(AppWindow):
         painter.setOpacity(0.25)  # Set the opacity
         painter.setBrush(QBrush(QColor(*self.app_config.hud_layout.theme.background_colour)))  # Set the color to black
         painter.drawRect(self.rect())
-
-    def quitApp(self):
-        self.controller.store()
-        self.controller.stop()

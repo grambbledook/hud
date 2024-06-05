@@ -61,5 +61,5 @@ class MetricsPanel(QMainWindow):
         event.accept()
 
     def bind_to_model(self, channel):
-        channel.devices.subscribe(self.updateDevice)
+        channel.device_selected.subscribe(self.updateDevice)
         channel.metrics.subscribe(self.updateMetrics)

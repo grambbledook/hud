@@ -3,13 +3,8 @@ from PySide6.QtGui import QPainter, QBrush, QColor
 from PySide6.QtWidgets import QGridLayout, QWidget
 
 from hud.configuration.config import Config
-from hud.model import HRM, CSC, PWR
-from hud.model.model import Model
-from hud.view import DeviceController
-from hud.view.sensor.sensor_panel import SensorPanel
 from hud.view.primitives.clickable_label import ClickableLabel
 from hud.view.primitives.draggable_window import AppWindow
-from hud.view.workout.metrics_panel import MetricsPanel
 
 
 class WorkoutStatisticsWindow(AppWindow):

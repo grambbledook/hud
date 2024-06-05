@@ -76,3 +76,8 @@ class DeviceDialog(QDialog):
         painter.setOpacity(0.75)  # Set the opacity
         painter.setBrush(QBrush(QColor(*self.app_config.hud_layout.theme.background_colour)))
         painter.drawRect(self.rect())
+
+    async def show_async(self):
+        # self.exec()
+        self.show()
+        self.activateWindow()

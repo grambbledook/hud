@@ -2,8 +2,8 @@ from dataclasses import dataclass, field
 from typing import Generic, Optional
 
 from hud.coms.channels import Notifications
-from hud.model import T
-from hud.model.data_classes import Device
+from hud.model import T, HRM, CSC, PWR, LEGACY_BIKE_TRAINER
+from hud.model.data_classes import Device, Service
 from hud.model.events import MeasurementEvent, CadenceMeasurement, SpeedMeasurement, PowerMeasurement, HrMeasurement
 
 # Conversion factor from millimeters to kilometers
@@ -103,7 +103,7 @@ class Model:
     power: Connection[PowerState] = field(default_factory=lambda: Connection(None, PowerState()))
     trainer: Connection[BikeTrainer] = field(default_factory=lambda: Connection(None, BikeTrainer()))
 
-    devices: list[Device] = field(default_factory=list)
+    devices: dict[str, Device] = field(default_factory=dict)
 
     hrm_notifications: Notifications = field(default_factory=lambda: Notifications())
     spd_notifications: Notifications = field(default_factory=lambda: Notifications())
@@ -111,31 +111,46 @@ class Model:
     pwr_notifications: Notifications = field(default_factory=lambda: Notifications())
     trainer_notifications: Notifications = field(default_factory=lambda: Notifications())
 
+    def add_device(self, device: Device):
+        self.devices[device.address] = device
+        if HRM in device.supported_services:
+            self.hrm_notifications.device_discovered.notify(device)
+        if CSC in device.supported_services:
+            self.cad_notifications.device_discovered.notify(device)
+            self.spd_notifications.device_discovered.notify(device)
+        if PWR in device.supported_services:
+            self.pwr_notifications.device_discovered.notify(device)
+        if LEGACY_BIKE_TRAINER in device.supported_services:
+            self.trainer_notifications.device_discovered.notify(device)
+
+    def find_devices(self, service: Service) -> list[Device]:
+        return [device for device in self.devices.values() if service in device.supported_services]
+
     def set_cadence(self, device: Device):
         print("Setting cadence: ", device)
         self.cadence = Connection(device, CadenceState())
-        self.cad_notifications.devices.notify(device.name)
+        self.cad_notifications.device_selected.notify(device.name)
         self.cad_notifications.metrics.notify(self.cadence.state)
 
     def set_speed(self, device: Device):
         print("Setting speed: ", device)
         self.speed = Connection(device, SpeedState())
-        self.spd_notifications.devices.notify(device.name)
+        self.spd_notifications.device_selected.notify(device.name)
         self.spd_notifications.metrics.notify(self.speed.state)
 
     def set_power(self, device: Device):
         self.power = Connection(device, PowerState())
-        self.pwr_notifications.devices.notify(device.name)
+        self.pwr_notifications.device_selected.notify(device.name)
         self.pwr_notifications.metrics.notify(self.power.state)
 
     def set_hrm(self, device: Device):
         self.hrm = Connection(device, HrmState())
-        self.hrm_notifications.devices.notify(device.name)
+        self.hrm_notifications.device_selected.notify(device.name)
         self.hrm_notifications.metrics.notify(self.hrm.state)
 
     def set_bike_trainer(self, device: Device):
         self.trainer = Connection(device, BikeTrainer())
-        self.trainer_notifications.devices.notify(device.name)
+        self.trainer_notifications.device_selected.notify(device.name)
         self.trainer_notifications.metrics.notify("Connected to bike trainer")
 
     def update_cadence(self, event: MeasurementEvent[CadenceMeasurement]):
