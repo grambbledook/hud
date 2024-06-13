@@ -1,5 +1,6 @@
 import asyncio
 import random
+import traceback
 from typing import TypeVar, Generic, Callable, Coroutine, Any
 
 from bleak import BleakClient
@@ -22,6 +23,8 @@ async def retry(f, max_retries=5, base_delay=1, max_delay=2.0):
         try:
             return await f()
         except Exception as e:
+            print(f"Exception raised on attempt {i + 1} of {max_retries}.", e)
+            traceback.print_exc()
             if i == max_retries - 1:
                 raise e
 

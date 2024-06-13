@@ -74,7 +74,7 @@ class SensorsWindow(AppWindow):
             highlighted_icon_path=self.app_config.asset("ok_high.png"),
             theme=self.app_config.hud_layout.theme,
         )
-        self.confirmLabel.clicked.connect(lambda: self.next.emit(4))
+        self.confirmLabel.clicked.connect(lambda: self.next.emit(9))
 
         self.layout = QGridLayout()
         self.centralWidget = QWidget(self)

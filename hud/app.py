@@ -3,8 +3,8 @@ import sys
 from os import path
 
 from PySide6 import QtAsyncio
-from PySide6.QtCore import QThreadPool
-from qasync import QApplication, QEventLoop
+from PySide6.QtCore import QThreadPool, QTimer, QEventLoop
+from PySide6.QtWidgets import QApplication
 
 from hud.configuration.config import Config
 from hud.controller.controller import DeviceController
@@ -27,16 +27,12 @@ from hud.view.workout_statistics.workout_statistics_window import WorkoutStatist
 if __name__ == "__main__":
     app = QApplication(sys.argv)
 
-    loop = QEventLoop(app)
-    asyncio.set_event_loop(loop)
-
-    QThreadPool.globalInstance().setMaxThreadCount(10)
-    pool = QThreadPool.globalInstance()
+    # loop = QEventLoop(app)
+    # asyncio.set_event_loop(loop)
 
     model = Model()
     registry = DeviceRegistry()
 
-    mock_mode = True
     discovery_service = BleDiscoveryService(SUPPORTED_SERVICES, model)
     hr_service = HeartRateService(model, registry)
     csc_service = CyclingCadenceAndSpeedService(model, registry)
@@ -62,6 +58,7 @@ if __name__ == "__main__":
         legacy_bike_trainer_service=legacy_bike_trainer_service,
         config_service=config_service
     )
+    QTimer.singleShot(0, lambda: asyncio.ensure_future(controller.start_device_scan()))
 
     trainer_widget = TrainerWindow(app_config, controller, model)
     sensors_widget = SensorsWindow(app_config, controller, model)

@@ -3,6 +3,8 @@ from bleak import BleakClient
 
 from hud.model import LEGACY_BIKE_TRAINER
 from hud.model.data_classes import Device
+from hud.model.events import GeneralDataEvent, MeasurementEvent, GeneralSettingsEvent, FeStateEvent, \
+    SpecificTrainerDataEvent
 from hud.model.model import Model
 from hud.service.ble.base_ble_connection_service import BaseConnectionService
 from hud.service.device_registry import DeviceRegistry
@@ -17,19 +19,23 @@ class FecBikeTrainerService(BaseConnectionService):
         self.model.set_bike_trainer(device)
 
     def process_measurement(self, device: Device, data: bytearray):
-        # print(f"Received data from {device}: {data}")
-        pass
-
-        # payload_size = data[1]
-        # message = data[4:4 + payload_size - 1]
-        # page_type = message[0]
+        payload_size = data[1]
+        message = data[4:4 + payload_size - 1]
+        page_type = message[0]
         #
-        # if page_type == 16:
-        #     event = self._parse_general_data_page(device, message)
-        # elif page_type == 17:
-        #     event = self._parse_general_settings_page(device, message)
-        # elif page_type == 25:
-        #     event = self._parse_specific_trainer_data_page(device, message)
+        try:
+            if page_type == 16:
+                event = self._parse_general_data_page(device, message)
+            elif page_type == 17:
+                event = self._parse_general_settings_page(device, message)
+            elif page_type == 25:
+                event = self._parse_specific_trainer_data_page(device, message)
+            else:
+                return
+        except Exception as e:
+            event = e
+
+        print(f"Received data from {device}: {event} raw data: {data}")
 
     @staticmethod
     def _parse_general_data_page(device: Device, message: bytearray):
@@ -44,21 +50,27 @@ class FecBikeTrainerService(BaseConnectionService):
 
         heart_rate = message[6] if message[6] != 0xFF else None
 
-        fe_state, lat_toggle = FecBikeTrainerService._parse_fe_state_bit(message[8])
+        fe_state = FecBikeTrainerService._parse_fe_state_bit(message[8])
 
-        return
+        event = GeneralDataEvent(elapsed_time=elapsed_time, distance_traveled=distance_traveled, speed=speed,
+                                 heart_rate=heart_rate, fe_state_event=fe_state)
+
+        return MeasurementEvent(device=device, measurement=event)
 
     @staticmethod
     def _parse_general_settings_page(device, message):
         cycle_length = message[3]
-        incline = int.from_bytes(message[4:6], 'little', signed=True) * 0.01
-        if incline > 100 or incline < -100:
+        incline = int.from_bytes(message[4:6], 'big', signed=True) * 0.01
+        if incline > 100 or incline < -100 or incline == 0x7FFF:
             incline = None
+
         resistance = message[6] * 0.5
 
-        fe_state, lap_toggle = FecBikeTrainerService._parse_fe_state_bit(message[8])
+        fe_state = FecBikeTrainerService._parse_fe_state_bit(message[8])
 
-        return
+        event = GeneralSettingsEvent(cycle_length=cycle_length, incline=incline, resistance=resistance,
+                                     fe_state_event=fe_state)
+        return MeasurementEvent(device=device, measurement=event)
 
     @staticmethod
     def _parse_specific_trainer_data_page(device, message):
@@ -72,11 +84,15 @@ class FecBikeTrainerService(BaseConnectionService):
         else:
             accumulated_power = int.from_bytes(message[3:5], 'little')
 
+        fe_state = FecBikeTrainerService._parse_fe_state_bit(message[8])
 
-
+        event = SpecificTrainerDataEvent(update_event_count=update_event_count,
+                                         instantaneous_cadence=instantaneous_cadence, fe_state_event=fe_state,
+                                         instantaneous_power=instantaneous_power, accumulated_power=accumulated_power)
+        return MeasurementEvent(device=device, measurement=event)
 
     @staticmethod
-    def _parse_fe_state_bit(fe_state_bit: int):
+    def _parse_fe_state_bit(fe_state_bit: int) -> FeStateEvent:
         lap_toggle = fe_state_bit & 0x8
         code = fe_state_bit & 0x7
 
@@ -91,7 +107,7 @@ class FecBikeTrainerService(BaseConnectionService):
         else:
             fe_state = "UNKNOWN"
 
-        return fe_state, lap_toggle
+        return FeStateEvent(fe_state=fe_state, lap_toggle=lap_toggle)
+
     def set_target_power(self, device: Device, target_power: int):
         pass
-

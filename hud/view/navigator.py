@@ -1,8 +1,10 @@
+import asyncio
 import enum
 import sys
 from typing import Optional
 
 from hud.configuration.config import Config, BRIGHT, DARK
+from hud.controller.controller import DeviceController
 from hud.view.device.sensor_window import SensorsWindow
 from hud.view.primitives.draggable_window import DraggableWindow
 from hud.view.device.trainer_window import TrainerWindow
@@ -79,6 +81,8 @@ class ViewNavigator:
                 sys.exit(0)
             case _:
                 new_window = self.active_window = self.active_window
+
+
 
         print(f"Switching from window [{prev_window}] to [{new_window}]")
 

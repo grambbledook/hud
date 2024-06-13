@@ -8,6 +8,7 @@ from hud.service.ble.heart_rate_service import HeartRateService
 from hud.service.ble.power_meter_service import PowerService
 from hud.service.ble.scanner import BleDiscoveryService
 from hud.service.data_management_service import DataManagementService
+from hud.service.device_registry import DeviceRegistry
 
 
 class DeviceController:
@@ -57,24 +58,3 @@ class DeviceController:
             case _:
                 print(f"Unknown: {device}")
 
-    def stop(self):
-        print("Closing connections to Devices...")
-
-        print("Unsubscribing from HRM Service...")
-        self.hrm_service.stop()
-
-        print("Unsubscribing from CSC Service...")
-        self.csc_service.stop()
-
-        print("Unsubscribing from Power Service...")
-        self.power_service.stop()
-
-        print("All service stopped.")
-
-    def store(self):
-        print("Storing configuration...")
-        self.config_service.store()
-
-    def load(self):
-        print("Loading configuration...")
-        self.config_service.load()

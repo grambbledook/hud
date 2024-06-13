@@ -1,5 +1,5 @@
 import asyncio
-from typing import Optional, Union
+from typing import Union
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QMainWindow, QLabel, QGridLayout, QWidget
@@ -60,7 +60,7 @@ class SelectDevicePanel(QMainWindow):
 
     async def showSelectDeviceDialog(self):
         self.dialog = DeviceDialog(self.app_config, self)
-        self.dialog.selectDeviceSignal.connect(self.deviceSelected)
+        self.dialog.selectDeviceSignal.connect(lambda x: asyncio.ensure_future(self.deviceSelected(x)))
         self.populate_device_list(self.model.find_devices(self.ble_service_type))
 
         asyncio.ensure_future(self.controller.start_device_scan())
@@ -75,7 +75,7 @@ class SelectDevicePanel(QMainWindow):
         for device in data:
             self.dialog.showDevice(device)
 
-    def deviceSelected(self, device: Device):
+    async def deviceSelected(self, device: Device):
         self.dialog = None
         self.controller.stop_device_scan()
 
