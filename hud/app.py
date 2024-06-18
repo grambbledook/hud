@@ -2,9 +2,7 @@ import asyncio
 import sys
 from os import path
 
-from PySide6 import QtAsyncio
-from PySide6.QtCore import QThreadPool, QTimer, QEventLoop
-from PySide6.QtWidgets import QApplication
+from qasync import QApplication, QEventLoop
 
 from hud.configuration.config import Config
 from hud.controller.controller import DeviceController
@@ -27,8 +25,11 @@ from hud.view.workout_statistics.workout_statistics_window import WorkoutStatist
 if __name__ == "__main__":
     app = QApplication(sys.argv)
 
-    # loop = QEventLoop(app)
-    # asyncio.set_event_loop(loop)
+    event_loop = QEventLoop(app)
+    asyncio.set_event_loop(event_loop)
+
+    app_close_event = asyncio.Event()
+    app.aboutToQuit.connect(app_close_event.set)
 
     model = Model()
     registry = DeviceRegistry()
@@ -58,7 +59,6 @@ if __name__ == "__main__":
         legacy_bike_trainer_service=legacy_bike_trainer_service,
         config_service=config_service
     )
-    QTimer.singleShot(0, lambda: asyncio.ensure_future(controller.start_device_scan()))
 
     trainer_widget = TrainerWindow(app_config, controller, model)
     sensors_widget = SensorsWindow(app_config, controller, model)
@@ -77,4 +77,5 @@ if __name__ == "__main__":
     tray = SystemTray(app_config=app_config, view_navigator=view_navigator)
     tray.show()
 
-    QtAsyncio.run(handle_sigint=True)
+    with event_loop:
+        event_loop.run_until_complete(app_close_event.wait())
