@@ -77,7 +77,6 @@ class SelectDevicePanel(QMainWindow):
 
     async def deviceSelected(self, device: Device):
         self.dialog = None
-        self.controller.stop_device_scan()
 
         if device is None:
             return

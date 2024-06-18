@@ -1,3 +1,5 @@
+import asyncio
+from asyncio import Task
 from typing import Callable
 
 from bleak import BleakScanner
@@ -47,20 +49,27 @@ class ScanTask(InterruptableTask):
 class BleDiscoveryService:
 
     def __init__(self, services: list[Service], model: Model):
-        self.tasks: list[ScanTask] = []
+        self.tasks: list[Task] = []
         self.services: list[Service] = services
         self.model: Model = model
 
     async def start_scan(self):
-        self.stop_scan()
+        await self.stop_scan()
 
-        task = ScanTask(discover_device=self.append_device, services=self.services)
+        unit = ScanTask(discover_device=self.append_device, services=self.services)
+
+        task = asyncio.create_task(unit.execute())
         self.tasks.append(task)
-        await task.execute()
+        try:
+            await task
+        except asyncio.CancelledError:
+            print("Old scan task was cancelled.")
 
-    def stop_scan(self):
+    async def stop_scan(self):
         for task in self.tasks:
-            task.interrupt()
+            task.cancel()
+
+        self.tasks.clear()
 
     def append_device(self, device: Device):
         if device.address in self.model.devices:

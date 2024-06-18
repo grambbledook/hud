@@ -8,7 +8,6 @@ from hud.service.ble.heart_rate_service import HeartRateService
 from hud.service.ble.power_meter_service import PowerService
 from hud.service.ble.scanner import BleDiscoveryService
 from hud.service.data_management_service import DataManagementService
-from hud.service.device_registry import DeviceRegistry
 
 
 class DeviceController:
@@ -33,10 +32,12 @@ class DeviceController:
     async def start_device_scan(self):
         await self.scan_service.start_scan()
 
-    def stop_device_scan(self):
-        self.scan_service.stop_scan()
+    async def stop_device_scan(self):
+        await self.scan_service.stop_scan()
 
     async def set_device(self, device: Device):
+        await self.scan_service.stop_scan()
+
         print(f"Device found: {device}")
         tasks = [x for service in device.supported_services for x in [self.set_service(device, service)] if
                  service is not None]
@@ -57,4 +58,3 @@ class DeviceController:
                 return self.legacy_bike_trainer_service.set_device(device)
             case _:
                 print(f"Unknown: {device}")
-

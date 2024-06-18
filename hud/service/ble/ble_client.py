@@ -68,8 +68,8 @@ class BleClient(Generic[T]):
     async def write(self, uuid: str, payload: bytearray):
         pass
 
-    def _disconnect_callback(self, _: BleakClient):
-        self.disconnected_callback(self)
+    async def _disconnect_callback(self, _: BleakClient):
+        await self.disconnected_callback(self)
 
     async def stop_notify(self, characteristic_uuid: str):
         await self.delegate.stop_notify(characteristic_uuid)
