@@ -86,8 +86,8 @@ class BaseConnectionService(abc.ABC):
         if [task for task in self.tasks if task.client.device == device and task.service == self.service]:
             return
 
-        def disconnect_callback(client0: BleClient):
-            self.set_device(client0.device)
+        async def disconnect_callback(client0: BleClient):
+            await self.set_device(client0.device)
 
         client = await self.registry.connect(device, disconnect_callback)
 

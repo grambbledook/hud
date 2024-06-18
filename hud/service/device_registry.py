@@ -1,4 +1,5 @@
 import asyncio
+import inspect
 from collections import defaultdict
 from typing import Callable, Dict
 
@@ -37,7 +38,10 @@ class DeviceRegistry:
             await client.connect()
 
             for callback in self.callbacks[client.device_id]:
-                callback(client)
+                if inspect.iscoroutinefunction(callback):
+                    await callback(client)
+                else:
+                    callback(client)
 
     async def stop(self):
         async with self.lock:
