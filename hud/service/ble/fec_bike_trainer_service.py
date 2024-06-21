@@ -35,7 +35,7 @@ class FecBikeTrainerService(BaseConnectionService):
         except Exception as e:
             event = e
 
-        print(f"Received data from {device}: {event} raw data: {data}")
+        print(f"Received page data {page_type} from {device.device_id}: {event.measurement if hasattr(event, "measurement") else event} raw data: {data}")
 
     @staticmethod
     def _parse_general_data_page(device: Device, message: bytearray):
@@ -45,12 +45,12 @@ class FecBikeTrainerService(BaseConnectionService):
         elapsed_time = message[2] * 0.25
         distance_traveled = message[3]
 
-        speed_raw = int.from_bytes(message[4:6], 'little')
+        speed_raw = int.from_bytes(message[4:6], 'big')
         speed = speed_raw * 0.001 if speed_raw != 0xFFFF else None
 
         heart_rate = message[6] if message[6] != 0xFF else None
 
-        fe_state = FecBikeTrainerService._parse_fe_state_bit(message[8])
+        fe_state = FecBikeTrainerService._parse_fe_state_bit(message[7])
 
         event = GeneralDataEvent(elapsed_time=elapsed_time, distance_traveled=distance_traveled, speed=speed,
                                  heart_rate=heart_rate, fe_state_event=fe_state)
@@ -60,13 +60,15 @@ class FecBikeTrainerService(BaseConnectionService):
     @staticmethod
     def _parse_general_settings_page(device, message):
         cycle_length = message[3]
-        incline = int.from_bytes(message[4:6], 'big', signed=True) * 0.01
-        if incline > 100 or incline < -100 or incline == 0x7FFF:
+        incline_value = int.from_bytes(message[4:6], 'big', signed=True)
+
+        incline = incline_value * 0.01
+        if incline > 100 or incline < -100 or incline_value == 0x7FFF:
             incline = None
 
         resistance = message[6] * 0.5
 
-        fe_state = FecBikeTrainerService._parse_fe_state_bit(message[8])
+        fe_state = FecBikeTrainerService._parse_fe_state_bit(message[7])
 
         event = GeneralSettingsEvent(cycle_length=cycle_length, incline=incline, resistance=resistance,
                                      fe_state_event=fe_state)
@@ -78,13 +80,13 @@ class FecBikeTrainerService(BaseConnectionService):
         instantaneous_cadence = message[2] if message[2] != 0xFF else None
 
         # instantaneous power field is 12 bits
-        instantaneous_power = message[5:7] >> 4
+        instantaneous_power = int.from_bytes(message[5:7], 'big') >> 4
         if instantaneous_power == 0xFFF:
             instantaneous_power = accumulated_power = None
         else:
-            accumulated_power = int.from_bytes(message[3:5], 'little')
+            accumulated_power = int.from_bytes(message[3:5], 'big')
 
-        fe_state = FecBikeTrainerService._parse_fe_state_bit(message[8])
+        fe_state = FecBikeTrainerService._parse_fe_state_bit(message[7])
 
         event = SpecificTrainerDataEvent(update_event_count=update_event_count,
                                          instantaneous_cadence=instantaneous_cadence, fe_state_event=fe_state,

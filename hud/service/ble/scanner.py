@@ -72,7 +72,4 @@ class BleDiscoveryService:
         self.tasks.clear()
 
     def append_device(self, device: Device):
-        if device.address in self.model.devices:
-            return
-
         self.model.add_device(device)

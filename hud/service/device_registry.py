@@ -35,13 +35,8 @@ class DeviceRegistry:
 
     async def _on_disconnect(self, client: BleClient):
         async with self.lock:
-            await client.connect()
-
             for callback in self.callbacks[client.device_id]:
-                if inspect.iscoroutinefunction(callback):
-                    await callback(client)
-                else:
-                    callback(client)
+                callback(client)
 
     async def stop(self):
         async with self.lock:

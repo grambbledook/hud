@@ -83,13 +83,7 @@ class BaseConnectionService(abc.ABC):
         self.service = service
 
     async def set_device(self, device: Device):
-        if [task for task in self.tasks if task.client.device == device and task.service == self.service]:
-            return
-
-        async def disconnect_callback(client0: BleClient):
-            await self.set_device(client0.device)
-
-        client = await self.registry.connect(device, disconnect_callback)
+        client = await self.registry.connect(device, lambda _: print("Received disconnection callback"))
 
         set_device_task = SetDeviceTask(client, self.process_feature_and_set_devices)
         await set_device_task.execute()
@@ -102,6 +96,7 @@ class BaseConnectionService(abc.ABC):
     def unsubscribe(self):
         for task in self.tasks:
             task.interrupt()
+        self.tasks = []
 
     @abc.abstractmethod
     async def process_feature_and_set_devices(self, client: BleClient, device: Device):
