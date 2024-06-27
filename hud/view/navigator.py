@@ -1,24 +1,13 @@
-import asyncio
-import enum
 import sys
 from typing import Optional
 
 from hud.configuration.config import Config, BRIGHT, DARK
-from hud.controller.controller import DeviceController
+from hud.view.app_state import AppState
 from hud.view.device.sensor_window import SensorsWindow
 from hud.view.primitives.draggable_window import DraggableWindow
 from hud.view.device.trainer_window import TrainerWindow
 from hud.view.workout.workout_window import WorkoutWindow
 from hud.view.workout_statistics.workout_statistics_window import WorkoutStatisticsWindow
-
-
-class AppState(enum.Enum):
-    WAITING_FOR_TRAINER = 1
-    WAITING_FOR_SENSORS = 2
-    WAITING_FOR_WORKOUT = 3
-    IN_WORKOUT = 4
-    WORKOUT_FINISHED = 5
-    EXITING = 9
 
 
 class ViewNavigator:
@@ -27,19 +16,15 @@ class ViewNavigator:
                  workout_statistics_window: WorkoutStatisticsWindow):
         self.app_config = app_config
         self.trainer_choice_window = trainer_choice_window
-        trainer_choice_window.prev.connect(self.progress_to_state)
         trainer_choice_window.next.connect(self.progress_to_state)
 
         self.additional_sensors_window = additional_sensors_window
-        additional_sensors_window.prev.connect(self.progress_to_state)
         additional_sensors_window.next.connect(self.progress_to_state)
 
         self.workout_window = workout_window
-        workout_window.prev.connect(self.progress_to_state)
         workout_window.next.connect(self.progress_to_state)
 
         self.workout_statistics_window = workout_statistics_window
-        workout_statistics_window.prev.connect(self.progress_to_state)
         workout_statistics_window.next.connect(self.progress_to_state)
 
         self.select_workout_window = None

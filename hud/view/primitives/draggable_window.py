@@ -1,7 +1,10 @@
+from enum import Enum
+
 from PySide6.QtCore import QPoint, Qt, Signal
 from PySide6.QtWidgets import QMainWindow
 
 from hud.configuration.config import Config
+from hud.view.app_state import AppState
 
 
 class DraggableWindow(QMainWindow):
@@ -27,8 +30,7 @@ class DraggableWindow(QMainWindow):
 
 
 class AppWindow(DraggableWindow):
-    next = Signal(int)
-    prev = Signal(int)
+    next = Signal(Enum)
 
     def __init__(self, parent=None):
         super().__init__(parent)

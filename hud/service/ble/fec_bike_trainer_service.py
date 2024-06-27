@@ -26,16 +26,17 @@ class FecBikeTrainerService(BaseConnectionService):
         try:
             if page_type == 16:
                 event = self._parse_general_data_page(device, message)
+                self.model.update_general_data(event)
             elif page_type == 17:
                 event = self._parse_general_settings_page(device, message)
+                self.model.update_general_settings(event)
             elif page_type == 25:
                 event = self._parse_specific_trainer_data_page(device, message)
+                self.model.update_specific_trainer_data(event)
             else:
                 return
         except Exception as e:
-            event = e
-
-        print(f"Received page data {page_type} from {device.device_id}: {event.measurement if hasattr(event, "measurement") else event} raw data: {data}")
+            print(f"Error processing measurement: {e}")
 
     @staticmethod
     def _parse_general_data_page(device: Device, message: bytearray):

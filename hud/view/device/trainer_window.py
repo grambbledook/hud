@@ -6,6 +6,7 @@ from hud.configuration.config import Config
 from hud.model import LEGACY_BIKE_TRAINER
 from hud.model.model import Model
 from hud.view import DeviceController
+from hud.view.app_state import AppState
 from hud.view.primitives.clickable_label import ClickableLabel
 from hud.view.primitives.draggable_window import AppWindow
 from hud.view.primitives.theme_switch import with_switchable_theme
@@ -41,11 +42,11 @@ class TrainerWindow(AppWindow):
         self.trainer_panel.bind_to_model(model.trainer_notifications)
 
         self.confirmLabel = ClickableLabel(
-            normal_icon_path=self.app_config.asset("ok.png"),
-            highlighted_icon_path=self.app_config.asset("ok_high.png"),
+            normal_icon_path=self.app_config.asset("next.png"),
+            highlighted_icon_path=self.app_config.asset("next_high.png"),
             theme=self.app_config.hud_layout.theme,
         )
-        self.confirmLabel.clicked.connect(lambda: self.next.emit(2))
+        self.confirmLabel.clicked.connect(lambda: self.next.emit(AppState.WAITING_FOR_SENSORS.value))
 
         self.layout = QGridLayout()
         self.centralWidget = QWidget(self)

@@ -4,7 +4,8 @@ from typing import Generic, Optional
 from hud.coms.channels import Notifications
 from hud.model import T, HRM, CSC, PWR, LEGACY_BIKE_TRAINER
 from hud.model.data_classes import Device, Service
-from hud.model.events import MeasurementEvent, CadenceMeasurement, SpeedMeasurement, PowerMeasurement, HrMeasurement
+from hud.model.events import MeasurementEvent, CadenceMeasurement, SpeedMeasurement, PowerMeasurement, HrMeasurement, \
+    GeneralDataEvent
 
 # Conversion factor from millimeters to kilometers
 MM_TO_KM = 1 / 1_000_000
@@ -255,3 +256,18 @@ class Model:
         state.count += 1
 
         self.pwr_notifications.metrics.notify(state)
+
+    def update_general_data(self, event: MeasurementEvent[GeneralDataEvent]):
+        e = event.measurement
+        print(
+            f"General data: time={e.elapsed_time}, distance={e.distance_traveled}, speed={e.speed}, hr={e.heart_rate}, state={e.fe_state_event}")
+
+    def update_general_settings(self, event):
+        e = event.measurement
+        print(
+            f"General settings: cycle_length={e.cycle_length}, incline={e.incline}, resistance={e.resistance}, state={e.fe_state_event}")
+
+    def update_specific_trainer_data(self, event):
+        e = event.measurement
+        print(
+            f"Specific trainer data: update_event_count={e.update_event_count}, cadence={e.instantaneous_cadence}, ipower={e.instantaneous_power}, apower={e.accumulated_power}, state={e.fe_state_event}")

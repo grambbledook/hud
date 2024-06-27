@@ -6,6 +6,7 @@ from hud.configuration.config import Config
 from hud.model import HRM, CSC, PWR
 from hud.model.model import Model
 from hud.view import DeviceController
+from hud.view.app_state import AppState
 from hud.view.primitives.theme_switch import with_switchable_theme
 from hud.view.device.select_device_panel import SelectDevicePanel
 from hud.view.primitives.clickable_label import ClickableLabel
@@ -69,12 +70,19 @@ class SensorsWindow(AppWindow):
         )
         self.speed_sensor_panel.bind_to_model(model.spd_notifications)
 
-        self.confirmLabel = ClickableLabel(
-            normal_icon_path=self.app_config.asset("ok.png"),
-            highlighted_icon_path=self.app_config.asset("ok_high.png"),
+        self.prevLabel = ClickableLabel(
+            normal_icon_path=self.app_config.asset("back.png"),
+            highlighted_icon_path=self.app_config.asset("back_high.png"),
             theme=self.app_config.hud_layout.theme,
         )
-        self.confirmLabel.clicked.connect(lambda: self.next.emit(9))
+        self.prevLabel.clicked.connect(lambda: self.next.emit(AppState.WAITING_FOR_TRAINER))
+
+        self.nextLabel = ClickableLabel(
+            normal_icon_path=self.app_config.asset("next.png"),
+            highlighted_icon_path=self.app_config.asset("next_high.png"),
+            theme=self.app_config.hud_layout.theme,
+        )
+        self.nextLabel.clicked.connect(lambda: self.next.emit(AppState.IN_WORKOUT))
 
         self.layout = QGridLayout()
         self.centralWidget = QWidget(self)
@@ -85,7 +93,8 @@ class SensorsWindow(AppWindow):
         self.layout.addWidget(self.cadence_sensor_panel, 0, 1)
         self.layout.addWidget(self.power_meter_panel, 1, 0)
         self.layout.addWidget(self.speed_sensor_panel, 1, 1)
-        self.layout.addWidget(self.confirmLabel, 3, 0, 1, 2, Qt.AlignmentFlag.AlignCenter)
+        self.layout.addWidget(self.prevLabel, 3, 0, Qt.AlignmentFlag.AlignCenter)
+        self.layout.addWidget(self.nextLabel, 3, 1, Qt.AlignmentFlag.AlignCenter)
 
         self.setWindowFlags(Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.FramelessWindowHint)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
